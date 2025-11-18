@@ -24,3 +24,15 @@
 - Target SDK: 34 (Android 14)
 
 ## 项目结构
+
+app/
+├── src/
+│ ├── main/
+│ │ ├── java/com/example/mobilellmchat/
+│ │ │ ├── model/ # 数据模型
+│ │ │ ├── viewmodel/ # 视图模型
+│ │ │ ├── api/ # 网络接口
+│ │ │ ├── adapter/ # 适配器
+│ │ │ └── utils/ # 工具类
+│ │ ├── res/ # 资源文件
+│ │ └── AndroidManifest.xml
