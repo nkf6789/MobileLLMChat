@@ -1,0 +1,28 @@
+# Android Studio
+*.iml
+.gradle
+/local.properties
+/.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Gradle
+.gradle/
+build/
+
+# API Keys（重要！不要提交密钥）
+**/api_keys.properties
+**/secrets.properties
+
+# 其他
+*.apk
+*.ap_
+*.dex
+*.class
+bin/
+gen/
+out/
