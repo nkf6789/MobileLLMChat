@@ -8,7 +8,7 @@ data class ChatResponse(
 
 data class Choice(
     val index: Int,
-    val message: Message,
+    val message: ApiMessage,  // 改用 ApiMessage
     val finish_reason: String? = null
 )
 

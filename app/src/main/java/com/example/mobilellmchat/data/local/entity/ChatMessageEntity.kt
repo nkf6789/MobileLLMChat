@@ -18,11 +18,11 @@ import androidx.room.PrimaryKey
     indices = [Index(value = ["conversationId"])]
 )
 data class ChatMessageEntity(
-    @PrimaryKey(autoGenerate = true)
-    val id: Long = 0,
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val conversationId: Long,
+    val role: String, // "user" or "assistant"
     val content: String,
-    val role: String,  // "user" 或 "assistant"
     val timestamp: Long = System.currentTimeMillis(),
-    val messageType: String = "text"  // "text", "image", "multimodal"
+    val isLiked: Boolean = false,
+    val isFavorited: Boolean = false
 )

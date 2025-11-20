@@ -10,52 +10,37 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.mobilellmchat.R
 import com.example.mobilellmchat.data.local.entity.ConversationEntity
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
+import java.util.Locale
 
 class ConversationAdapter(
-    private val onConversationClick: (ConversationEntity) -> Unit
-) : ListAdapter<ConversationEntity, ConversationAdapter.ConversationViewHolder>(ConversationDiffCallback()) {
+    private val onClick: (ConversationEntity) -> Unit
+) : ListAdapter<ConversationEntity, ConversationAdapter.ViewHolder>(DiffCallback()) {
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ConversationViewHolder {
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view = LayoutInflater.from(parent.context)
-            .inflate(android.R.layout.simple_list_item_2, parent, false)
-        return ConversationViewHolder(view, onConversationClick)
+            .inflate(R.layout.item_conversation, parent, false)
+        return ViewHolder(view, onClick)
     }
 
-    override fun onBindViewHolder(holder: ConversationViewHolder, position: Int) {
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         holder.bind(getItem(position))
     }
 
-    class ConversationViewHolder(
-        itemView: View,
-        private val onClick: (ConversationEntity) -> Unit
-    ) : RecyclerView.ViewHolder(itemView) {
+    class ViewHolder(itemView: View, val onClick: (ConversationEntity) -> Unit) : RecyclerView.ViewHolder(itemView) {
+        private val tvTitle: TextView = itemView.findViewById(R.id.tvTitle)
+        private val tvTime: TextView = itemView.findViewById(R.id.tvTime)
 
-        private val titleView: TextView = itemView.findViewById(android.R.id.text1)
-        private val timeView: TextView = itemView.findViewById(android.R.id.text2)
-
-        fun bind(conversation: ConversationEntity) {
-            titleView.text = conversation.title
-            timeView.text = formatTime(conversation.updatedAt)
-
-            itemView.setOnClickListener {
-                onClick(conversation)
-            }
-        }
-
-        private fun formatTime(timestamp: Long): String {
+        fun bind(item: ConversationEntity) {
+            tvTitle.text = item.title
             val sdf = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
-            return sdf.format(Date(timestamp))
+            tvTime.text = sdf.format(Date(item.timestamp))
+            itemView.setOnClickListener { onClick(item) }
         }
     }
-}
 
-class ConversationDiffCallback : DiffUtil.ItemCallback<ConversationEntity>() {
-    override fun areItemsTheSame(oldItem: ConversationEntity, newItem: ConversationEntity): Boolean {
-        return oldItem.id == newItem.id
-    }
-
-    override fun areContentsTheSame(oldItem: ConversationEntity, newItem: ConversationEntity): Boolean {
-        return oldItem == newItem
+    class DiffCallback : DiffUtil.ItemCallback<ConversationEntity>() {
+        override fun areItemsTheSame(oldItem: ConversationEntity, newItem: ConversationEntity) = oldItem.id == newItem.id
+        override fun areContentsTheSame(oldItem: ConversationEntity, newItem: ConversationEntity) = oldItem == newItem
     }
 }

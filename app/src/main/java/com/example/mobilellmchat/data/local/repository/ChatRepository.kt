@@ -9,77 +9,64 @@ import kotlinx.coroutines.flow.map
 
 class ChatRepository(private val database: AppDatabase) {
 
-    private val conversationDao = database.conversationDao()
-    private val messageDao = database.chatMessageDao()
+    private val dao = database.conversationDao()
 
-    // ========== 会话管理 ==========
-
-    fun getAllConversations(): Flow<List<ConversationEntity>> {
-        return conversationDao.getAllConversations()
-    }
-
-    suspend fun getConversationById(conversationId: Long): ConversationEntity? {
-        return conversationDao.getConversationById(conversationId)
-    }
+    // --- Conversations ---
+    fun getAllConversations(): Flow<List<ConversationEntity>> = dao.getAllConversations()
 
     suspend fun createConversation(title: String): Long {
-        val conversation = ConversationEntity(title = title)
-        return conversationDao.insertConversation(conversation)
+        return dao.insertConversation(ConversationEntity(title = title))
+    }
+
+    suspend fun deleteConversation(id: Long) {
+        dao.deleteConversation(id)
+    }
+
+    suspend fun getConversationById(id: Long): ConversationEntity? {
+        return dao.getConversationById(id)
     }
 
     suspend fun updateConversation(conversation: ConversationEntity) {
-        conversationDao.updateConversation(conversation.copy(updatedAt = System.currentTimeMillis()))
+        dao.updateConversation(conversation)
     }
 
-    suspend fun deleteConversation(conversationId: Long) {
-        conversationDao.deleteConversationById(conversationId)
-    }
-
-    // ========== 消息管理 ==========
-
-    fun getMessagesByConversation(conversationId: Long): Flow<List<Message>> {
-        return messageDao.getMessagesByConversation(conversationId).map { entities ->
-            entities.map { it.toMessage() }
+    // --- Messages ---
+    // 将数据库实体转换为 UI 模型
+    fun getMessagesForConversation(conversationId: Long): Flow<List<Message>> {
+        return dao.getMessagesByConversation(conversationId).map { entities ->
+            entities.map { it.toUiModel() }
         }
     }
 
-    suspend fun getMessagesByConversationSync(conversationId: Long): List<Message> {
-        return messageDao.getMessagesByConversationSync(conversationId).map { it.toMessage() }
+    suspend fun getMessagesByConversationSync(conversationId: Long): List<ChatMessageEntity> {
+        return dao.getMessagesByConversationSync(conversationId)
     }
 
-    suspend fun saveMessage(conversationId: Long, message: Message) {
+    suspend fun insertMessage(conversationId: Long, content: String, role: String) {
         val entity = ChatMessageEntity(
             conversationId = conversationId,
-            content = message.content,
-            role = message.role,
-            timestamp = message.timestamp
+            role = role,
+            content = content
         )
-        messageDao.insertMessage(entity)
+        dao.insertMessage(entity)
     }
 
-    suspend fun saveMessages(conversationId: Long, messages: List<Message>) {
-        val entities = messages.map { message ->
-            ChatMessageEntity(
-                conversationId = conversationId,
-                content = message.content,
-                role = message.role,
-                timestamp = message.timestamp
-            )
-        }
-        messageDao.insertMessages(entities)
+    suspend fun toggleLike(id: Long, currentStatus: Boolean) {
+        dao.updateLikeStatus(id, !currentStatus)
     }
 
-    suspend fun clearConversationMessages(conversationId: Long) {
-        messageDao.deleteMessagesByConversation(conversationId)
+    suspend fun toggleFavorite(id: Long, currentStatus: Boolean) {
+        dao.updateFavoriteStatus(id, !currentStatus)
     }
 
-    // ========== 工具方法 ==========
-
-    private fun ChatMessageEntity.toMessage(): Message {
+    private fun ChatMessageEntity.toUiModel(): Message {
         return Message(
-            content = this.content,
+            id = this.id,
             role = this.role,
-            timestamp = this.timestamp
+            content = this.content,
+            timestamp = this.timestamp,
+            isLiked = this.isLiked,
+            isFavorited = this.isFavorited
         )
     }
 }

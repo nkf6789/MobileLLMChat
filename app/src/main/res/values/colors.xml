@@ -1,5 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- 原有颜色（保留你项目中已有的） -->
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- 🆕 文本颜色 -->
+    <color name="text_primary">#212121</color>
+    <color name="text_secondary">#757575</color>
+
+    <!-- 🆕 图标颜色 -->
+    <color name="icon_gray">#757575</color>
+
+    <!-- 🆕 主题颜色 -->
+    <color name="primary">#2196F3</color>
+    <color name="accent">#FFC107</color>
+
+    <!-- 🆕 背景颜色 -->
+    <color name="background">#F5F5F5</color>
 </resources>

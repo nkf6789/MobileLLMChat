@@ -1,17 +1,22 @@
-package com.example.mobilellmchat.data.local.dao
+package com.example.mobilellmchat.data.local
 
-import androidx.room.*
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import androidx.room.Update
+import com.example.mobilellmchat.data.local.entity.ChatMessageEntity
 import com.example.mobilellmchat.data.local.entity.ConversationEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ConversationDao {
-
-    @Query("SELECT * FROM conversations ORDER BY updatedAt DESC")
+    // --- Conversations ---
+    @Query("SELECT * FROM conversations ORDER BY timestamp DESC")
     fun getAllConversations(): Flow<List<ConversationEntity>>
 
-    @Query("SELECT * FROM conversations WHERE id = :conversationId")
-    suspend fun getConversationById(conversationId: Long): ConversationEntity?
+    @Query("SELECT * FROM conversations WHERE id = :id")
+    suspend fun getConversationById(id: Long): ConversationEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertConversation(conversation: ConversationEntity): Long
@@ -19,9 +24,23 @@ interface ConversationDao {
     @Update
     suspend fun updateConversation(conversation: ConversationEntity)
 
-    @Delete
-    suspend fun deleteConversation(conversation: ConversationEntity)
+    @Query("DELETE FROM conversations WHERE id = :id")
+    suspend fun deleteConversation(id: Long)
 
-    @Query("DELETE FROM conversations WHERE id = :conversationId")
-    suspend fun deleteConversationById(conversationId: Long)
+    // --- Messages ---
+    @Query("SELECT * FROM chat_messages WHERE conversationId = :conversationId ORDER BY timestamp ASC")
+    fun getMessagesByConversation(conversationId: Long): Flow<List<ChatMessageEntity>>
+
+    // 同步方法，用于构造 API 上下文
+    @Query("SELECT * FROM chat_messages WHERE conversationId = :conversationId ORDER BY timestamp ASC")
+    suspend fun getMessagesByConversationSync(conversationId: Long): List<ChatMessageEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMessage(message: ChatMessageEntity)
+
+    @Query("UPDATE chat_messages SET isLiked = :isLiked WHERE id = :id")
+    suspend fun updateLikeStatus(id: Long, isLiked: Boolean)
+
+    @Query("UPDATE chat_messages SET isFavorited = :isFavorited WHERE id = :id")
+    suspend fun updateFavoriteStatus(id: Long, isFavorited: Boolean)
 }

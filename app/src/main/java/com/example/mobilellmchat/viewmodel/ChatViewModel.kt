@@ -1,170 +1,129 @@
 package com.example.mobilellmchat.viewmodel
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.asLiveData
+import androidx.lifecycle.switchMap
 import androidx.lifecycle.viewModelScope
-import com.example.mobilellmchat.data.local.AppDatabase
-import com.example.mobilellmchat.data.local.entity.ConversationEntity
+import com.example.mobilellmchat.api.DouBaoApiService
 import com.example.mobilellmchat.data.local.repository.ChatRepository
+import com.example.mobilellmchat.data.local.entity.ConversationEntity
 import com.example.mobilellmchat.model.ChatRequest
 import com.example.mobilellmchat.model.Message
-import com.example.mobilellmchat.utils.Constants
-import com.example.mobilellmchat.utils.RetrofitClient
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-class ChatViewModel(application: Application) : AndroidViewModel(application) {
+class ChatViewModel(
+    private val repository: ChatRepository,
+    private val apiService: DouBaoApiService
+) : ViewModel() {
 
-    private val repository: ChatRepository
+    // 1. 会话列表 (Flow -> LiveData)
+    val conversations: LiveData<List<ConversationEntity>> = repository.getAllConversations()
+        .catch { e -> Log.e("ChatViewModel", "Error loading conversations", e) }
+        .asLiveData()
 
-    // 当前会话ID
-    private val _currentConversationId = MutableLiveData<Long?>()
-    val currentConversationId: LiveData<Long?> = _currentConversationId
+    // 2. 当前选中的会话 ID
+    private val _currentConversationId = MutableLiveData<Long>()
+    val currentConversationId: LiveData<Long> get() = _currentConversationId
 
-    // 所有会话列表
-    private val _conversations = MutableLiveData<List<ConversationEntity>>()
-    val conversations: LiveData<List<ConversationEntity>> = _conversations
+    // 3. 消息列表 (根据 conversationId 变化自动切换数据源)
+    val messages: LiveData<List<Message>> = _currentConversationId.switchMap { id ->
+        repository.getMessagesForConversation(id).asLiveData()
+    }
 
-    // 当前会话的消息列表
-    private val _messages = MutableLiveData<List<Message>>(emptyList())
-    val messages: LiveData<List<Message>> = _messages
+    // 4. UI 状态
+    private val _isLoading = MutableLiveData(false)
+    val isLoading: LiveData<Boolean> get() = _isLoading
 
-    private val _isLoading = MutableLiveData<Boolean>(false)
-    val isLoading: LiveData<Boolean> = _isLoading
+    private val _toastMessage = MutableLiveData<String>()
+    val toastMessage: LiveData<String> get() = _toastMessage
 
     init {
-        val database = AppDatabase.getDatabase(application)
-        repository = ChatRepository(database)
-
-        // 加载所有会话
-        loadConversations()
+        // 初始化时加载最近的会话，或者等待 Activity 指示
+        Log.d("ChatViewModel", "ViewModel Initialized")
     }
 
-    // ========== 会话管理 ==========
-
-    private fun loadConversations() {
-        viewModelScope.launch {
-            repository.getAllConversations().collectLatest { list ->
-                _conversations.value = list
-
-                // 如果没有当前会话且有会话列表,自动选择第一个
-                if (_currentConversationId.value == null && list.isNotEmpty()) {
-                    switchConversation(list.first().id)
-                }
-            }
-        }
-    }
-
-    fun createNewConversation(title: String = "新对话") {
-        viewModelScope.launch {
-            val conversationId = repository.createConversation(title)
-            switchConversation(conversationId)
-        }
-    }
+    // ========== 业务逻辑方法 ==========
 
     fun switchConversation(conversationId: Long) {
         _currentConversationId.value = conversationId
-        viewModelScope.launch {
-            // 加载该会话的历史消息
-            repository.getMessagesByConversation(conversationId).collectLatest { messageList ->
-                _messages.value = messageList
-            }
-        }
     }
 
-    fun deleteConversation(conversationId: Long) {
+    fun createNewConversation() {
         viewModelScope.launch {
-            repository.deleteConversation(conversationId)
-
-            // 如果删除的是当前会话,切换到其他会话
-            if (_currentConversationId.value == conversationId) {
-                val remainingConversations = _conversations.value?.filterNot { it.id == conversationId }
-                if (!remainingConversations.isNullOrEmpty()) {
-                    switchConversation(remainingConversations.first().id)
-                } else {
-                    _currentConversationId.value = null
-                    _messages.value = emptyList()
-                }
-            }
-        }
-    }
-
-    fun renameConversation(conversationId: Long, newTitle: String) {
-        viewModelScope.launch {
-            val conversation = repository.getConversationById(conversationId)
-            conversation?.let {
-                repository.updateConversation(it.copy(title = newTitle))
-            }
-        }
-    }
-
-    // ========== 消息发送 ==========
-
-    fun sendMessage(userMessage: String) {
-        if (userMessage.isBlank()) return
-
-        val conversationId = _currentConversationId.value
-
-        // 如果没有当前会话,先创建一个
-        if (conversationId == null) {
-            viewModelScope.launch {
-                val newConversationId = repository.createConversation("新对话")
-                _currentConversationId.value = newConversationId
-                sendMessageToConversation(newConversationId, userMessage)
-            }
-        } else {
-            sendMessageToConversation(conversationId, userMessage)
-        }
-    }
-
-    private fun sendMessageToConversation(conversationId: Long, userMessage: String) {
-        viewModelScope.launch {
-            // 创建用户消息
-            val userMsg = Message(role = "user", content = userMessage)
-
-            // 保存用户消息到数据库
-            repository.saveMessage(conversationId, userMsg)
-
-            // ❌ 删除这3行手动更新的代码
-            // val currentMessages = _messages.value.orEmpty().toMutableList()
-            // currentMessages.add(userMsg)
-            // _messages.value = currentMessages
-
-            // 显示加载状态
-            _isLoading.value = true
-
             try {
-                // ✅ 从数据库获取最新消息（包含刚保存的用户消息）
-                val currentMessages = repository.getMessagesByConversationSync(conversationId)
+                val newTitle = "新对话 ${System.currentTimeMillis() / 1000}"
+                val newId = repository.createConversation(newTitle)
+                _currentConversationId.value = newId
+            } catch (e: Exception) {
+                _toastMessage.value = "创建会话失败: ${e.message}"
+            }
+        }
+    }
 
-                // 准备请求(包含对话历史)
+    fun deleteConversation(conversation: ConversationEntity) {
+        viewModelScope.launch {
+            repository.deleteConversation(conversation.id)
+            // 简单的逻辑：如果删除了当前会话，重置当前ID（Activity应监听并处理）
+            if (_currentConversationId.value == conversation.id) {
+                // 逻辑可以是切换到第一条，或者置空
+            }
+        }
+    }
+
+    fun sendMessage(content: String) {
+        val conversationId = _currentConversationId.value
+        if (conversationId == null) {
+            _toastMessage.value = "请先选择或创建一个会话"
+            return
+        }
+
+        if (content.isBlank()) return
+
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+
+                // 1. 保存用户消息到数据库
+                repository.insertMessage(conversationId, content, "user")
+
+                // 2. 获取历史记录 (数据库实体)
+                val history = repository.getMessagesByConversationSync(conversationId)
+
+                // 3. 【关键修复】将数据库实体转换为 API 模型
+                val apiMessages = history.map { dbMsg ->
+                    com.example.mobilellmchat.model.ApiMessage(
+                        role = dbMsg.role,
+                        content = dbMsg.content
+                    )
+                }
+
+                // 4. 构造请求
                 val request = ChatRequest(
-                    model = Constants.MODEL_ENDPOINT,
-                    messages = currentMessages,
-                    stream = false
+                    model = "doubao-seed-1-6-flash-250828",
+                    messages = apiMessages // 现在类型匹配了
                 )
 
-                // 发送请求
-                val response = RetrofitClient.douBaoApi.sendMessage(request)
+                // 5. 调用 API
+                val response = apiService.sendMessage(request)
 
-                // 获取回复
-                val aiReply = response.choices.firstOrNull()?.message?.content
-                    ?: "抱歉,我没有收到回复。"
+                val aiContent = response.choices.firstOrNull()?.message?.content
+                    ?: "无回复内容"
 
-                val aiMsg = Message(role = "assistant", content = aiReply)
+                repository.insertMessage(conversationId, aiContent, "assistant")
 
-                // 保存AI回复到数据库（Flow会自动触发UI更新）
-                repository.saveMessage(conversationId, aiMsg)
+                // 更新会话时间
+                val currentConv = repository.getConversationById(conversationId)
+                currentConv?.let { repository.updateConversation(it) }
 
             } catch (e: Exception) {
-                // 处理错误
-                val errorMsg = Message(
-                    role = "assistant",
-                    content = "抱歉,发生了错误:${e.message}"
-                )
-                repository.saveMessage(conversationId, errorMsg)
+                Log.e("ChatViewModel", "Send failed", e)
+                _toastMessage.value = "发送失败: ${e.message}"
             } finally {
                 _isLoading.value = false
             }
@@ -172,10 +131,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
 
-    fun clearMessages() {
-        val conversationId = _currentConversationId.value ?: return
+    // 互动功能
+    fun toggleLike(message: Message) {
         viewModelScope.launch {
-            repository.clearConversationMessages(conversationId)
+            repository.toggleLike(message.id, message.isLiked)
+        }
+    }
+
+    fun toggleFavorite(message: Message) {
+        viewModelScope.launch {
+            repository.toggleFavorite(message.id, message.isFavorited)
         }
     }
 }
