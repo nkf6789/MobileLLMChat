@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 当 isSelected = true 时显示实心蓝 -->
+    <item android:drawable="@drawable/ic_thumb_up_filled" android:state_selected="true" />
+    <!-- 默认显示空心灰 -->
+    <item android:drawable="@drawable/ic_thumb_up_outline" />
+</selector>

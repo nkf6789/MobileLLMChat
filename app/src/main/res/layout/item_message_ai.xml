@@ -4,57 +4,86 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:padding="8dp">
+    android:paddingStart="16dp"
+    android:paddingEnd="48dp"
+    android:paddingTop="12dp"
+    android:paddingBottom="12dp">
 
+    <!-- AI 消息气泡 -->
     <TextView
         android:id="@+id/tvContent"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:background="#F0F0F0"
-        android:maxWidth="280dp"
+        android:background="@drawable/bg_message_ai"
+        android:backgroundTint="#F2F3F5"
+        android:lineSpacingExtra="4dp"
         android:padding="12dp"
-        android:text="AI Message"
-        android:textColor="#000000"
+        android:text="AI Message Content"
+        android:textColor="#1F2329"
         android:textSize="16sp"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
+    <!-- 注意：如果没有 bg_ai_message，可以新建一个简单的 shape drawable 或者删掉 backgroundTint 直接用颜色 -->
 
+    <!-- 时间戳 -->
     <TextView
         android:id="@+id/tvTime"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
         android:text="12:00"
-        android:textSize="10sp"
-        android:textColor="#888888"
+        android:textColor="#999999"
+        android:textSize="11sp"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/tvContent" />
 
+    <!-- 互动操作栏 (复制、点赞、收藏) -->
     <LinearLayout
+        android:id="@+id/actionLayout"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
+        android:gravity="center_vertical"
         android:layout_marginStart="8dp"
         app:layout_constraintBottom_toBottomOf="@id/tvTime"
         app:layout_constraintStart_toEndOf="@id/tvTime"
         app:layout_constraintTop_toTopOf="@id/tvTime">
 
+        <!-- 复制按钮 -->
+        <ImageButton
+            android:id="@+id/btnCopy"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:scaleType="fitCenter"
+            android:padding="4dp"
+            android:src="@drawable/ic_copy"
+            android:contentDescription="复制" />
+
+        <!-- 点赞按钮 (应用 selector_like) -->
         <ImageButton
             android:id="@+id/btnLike"
             android:layout_width="24dp"
             android:layout_height="24dp"
+            android:layout_marginStart="16dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/star_off"
-            app:tint="#888888" />
+            android:scaleType="fitCenter"
+            android:padding="3dp"
+            android:src="@drawable/selector_like"
+            android:contentDescription="点赞" />
 
+        <!-- 收藏按钮 (应用 selector_favorite) -->
         <ImageButton
             android:id="@+id/btnFavorite"
             android:layout_width="24dp"
             android:layout_height="24dp"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="16dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_save"
-            app:tint="#888888" />
+            android:scaleType="fitCenter"
+            android:padding="3dp"
+            android:src="@drawable/selector_favorite"
+            android:contentDescription="收藏" />
+
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
