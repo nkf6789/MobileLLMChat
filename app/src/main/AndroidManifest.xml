@@ -13,6 +13,14 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 
+    <!-- 前台服务权限 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
+    <!-- 通知权限（Android 13+） -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -45,6 +53,23 @@
                 android:name="android.support.PARENT_ACTIVITY"
                 android:value=".MainActivity" />
         </activity>
+
+        <!-- 在现有的 MainActivity 下方添加 -->
+        <activity
+            android:name=".DownloadActivity"
+            android:exported="false"
+            android:label="模型下载管理"
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/Theme.MobileLLMChat" />
+
+
+        <!-- 模型下载服务 -->
+        <service
+            android:name=".service.ModelDownloadService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
 
     </application>
 
