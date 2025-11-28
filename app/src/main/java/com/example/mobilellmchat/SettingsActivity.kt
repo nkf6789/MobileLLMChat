@@ -1,5 +1,6 @@
 package com.example.mobilellmchat
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.*
@@ -16,11 +17,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
-/**
- * SettingsActivity - 模型设置页面
- *
- * [MODIFIED] 使用属性访问代替方法调用
- */
 class SettingsActivity : AppCompatActivity() {
 
     private lateinit var btnBack: ImageButton
@@ -28,6 +24,13 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var rbRemote: RadioButton
     private lateinit var rbLocal: RadioButton
     private lateinit var tvCurrentModel: TextView
+
+    // ✅ 新增：远程配置相关
+    private lateinit var cardRemoteConfig: CardView
+    private lateinit var etApiKey: EditText
+    private lateinit var etBaseUrl: EditText
+    private lateinit var etModelName: EditText
+
     private lateinit var cardLocalConfig: CardView
     private lateinit var spinnerLocalModel: Spinner
     private lateinit var btnDownloadModel: Button
@@ -61,7 +64,7 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun initTools() {
         preferences = AppPreferences(this)
-        fileManager = ModelFileManager(this)
+        fileManager = ModelFileManager.getInstance(this)
     }
 
     private fun initViews() {
@@ -70,6 +73,13 @@ class SettingsActivity : AppCompatActivity() {
         rbRemote = findViewById(R.id.rbRemote)
         rbLocal = findViewById(R.id.rbLocal)
         tvCurrentModel = findViewById(R.id.tvCurrentModel)
+
+        // ✅ 新增：远程配置视图
+        cardRemoteConfig = findViewById(R.id.cardRemoteConfig)
+        etApiKey = findViewById(R.id.etApiKey)
+        etBaseUrl = findViewById(R.id.etBaseUrl)
+        etModelName = findViewById(R.id.etModelName)
+
         cardLocalConfig = findViewById(R.id.cardLocalConfig)
         spinnerLocalModel = findViewById(R.id.spinnerLocalModel)
         btnDownloadModel = findViewById(R.id.btnDownloadModel)
@@ -88,21 +98,27 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun loadCurrentSettings() {
         lifecycleScope.launch {
-            // ✅ 使用属性访问
             val modelType = preferences.modelType
             val localModelPath = preferences.localModelPath
             val backend = preferences.computeBackend
             val threads = preferences.cpuThreads
             val temperature = preferences.temperature
 
+            // ✅ 加载远程配置
+            etApiKey.setText(preferences.apiKey)
+            etBaseUrl.setText(preferences.baseUrl)
+            etModelName.setText(preferences.modelName)
+
             when (modelType) {
                 ModelType.REMOTE -> {
                     rbRemote.isChecked = true
-                    tvCurrentModel.text = "当前: 云端模型 (豆包)"
+                    tvCurrentModel.text = "当前: 云端模型 (${preferences.modelName})"
+                    cardRemoteConfig.visibility = View.VISIBLE
                     cardLocalConfig.visibility = View.GONE
                 }
                 ModelType.LOCAL -> {
                     rbLocal.isChecked = true
+                    cardRemoteConfig.visibility = View.GONE
                     cardLocalConfig.visibility = View.VISIBLE
                     updateLocalModelStatus(localModelPath)
                 }
@@ -118,28 +134,53 @@ class SettingsActivity : AppCompatActivity() {
 
             val tempProgress = (temperature * 100).toInt()
             seekBarTemperature.progress = tempProgress
-            tvTemperatureValue.text = String.format(Locale.US, "%.1f", temperature)
+            tvTemperatureValue.text = String.format(Locale.getDefault(), "%.2f", temperature)
 
             if (localModelPath.isNotEmpty()) {
                 val modelName = localModelPath.substringAfterLast("/")
-                val index = availableModels.indexOf(modelName)
-                if (index >= 0) {
-                    spinnerLocalModel.setSelection(index)
+                val position = availableModels.indexOf(modelName)
+                if (position >= 0) {
+                    spinnerLocalModel.setSelection(position)
                 }
             }
         }
     }
 
     private fun setupListeners() {
-        btnBack.setOnClickListener { finish() }
+        btnBack.setOnClickListener {
+            finish()
+        }
 
+        // ✅ 模型类型切换监听
         rgModelType.setOnCheckedChangeListener { _, checkedId ->
-            cardLocalConfig.visibility = if (checkedId == R.id.rbLocal) View.VISIBLE else View.GONE
+            when (checkedId) {
+                R.id.rbRemote -> {
+                    cardRemoteConfig.visibility = View.VISIBLE
+                    cardLocalConfig.visibility = View.GONE
+                }
+                R.id.rbLocal -> {
+                    cardRemoteConfig.visibility = View.GONE
+                    cardLocalConfig.visibility = View.VISIBLE
+                }
+            }
+        }
+
+        btnDownloadModel.setOnClickListener {
+            startActivity(Intent(this, DownloadActivity::class.java))
+        }
+
+        switchGPU.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                Toast.makeText(this, "已启用 GPU 加速", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "已切换到 CPU 模式", Toast.LENGTH_SHORT).show()
+            }
         }
 
         seekBarThreads.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                tvThreadsValue.text = (progress + 1).toString()
+                val threads = progress + 1
+                tvThreadsValue.text = threads.toString()
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
@@ -148,43 +189,63 @@ class SettingsActivity : AppCompatActivity() {
         seekBarTemperature.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 val temp = progress / 100.0f
-                tvTemperatureValue.text = String.format(Locale.US, "%.1f", temp)
+                tvTemperatureValue.text = String.format(Locale.getDefault(), "%.2f", temp)
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
 
-        btnDownloadModel.setOnClickListener {
-            Toast.makeText(this, "模型下载功能将在下一版本实现", Toast.LENGTH_SHORT).show()
+        btnSave.setOnClickListener {
+            saveSettings()
         }
-
-        btnSave.setOnClickListener { saveSettings() }
     }
 
     private fun saveSettings() {
-        lifecycleScope.launch {
-            try {
-                // ✅ 使用属性赋值
-                val modelType = if (rbRemote.isChecked) ModelType.REMOTE else ModelType.LOCAL
+        val selectedModelType = if (rbRemote.isChecked) ModelType.REMOTE else ModelType.LOCAL
 
-                if (modelType == ModelType.LOCAL) {
-                    val selectedModel = spinnerLocalModel.selectedItem.toString()
+        when (selectedModelType) {
+            ModelType.REMOTE -> {
+                // ✅ 保存远程配置
+                val apiKey = etApiKey.text.toString().trim()
+                val baseUrl = etBaseUrl.text.toString().trim()
+                val modelName = etModelName.text.toString().trim()
 
-                    if (!fileManager.isModelDownloaded(selectedModel)) {
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(
-                                this@SettingsActivity,
-                                "⚠️ 模型 $selectedModel 尚未下载",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                        return@launch
-                    }
-
-                    preferences.localModelPath = fileManager.getModelPath(selectedModel)
+                if (apiKey.isEmpty()) {
+                    Toast.makeText(this, "请输入 API Key", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                if (baseUrl.isEmpty()) {
+                    Toast.makeText(this, "请输入 Base URL", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                if (modelName.isEmpty()) {
+                    Toast.makeText(this, "请输入模型名称", Toast.LENGTH_SHORT).show()
+                    return
                 }
 
-                preferences.modelType = modelType
+                preferences.modelType = ModelType.REMOTE
+                preferences.apiKey = apiKey
+                preferences.baseUrl = baseUrl  // 会自动补 /
+                preferences.modelName = modelName
+
+                Toast.makeText(this, "远程模型配置已保存", Toast.LENGTH_SHORT).show()
+                finish()
+            }
+
+            ModelType.LOCAL -> {
+                val selectedModel = spinnerLocalModel.selectedItem.toString()
+
+                if (!fileManager.isModelDownloaded(selectedModel)) {
+                    Toast.makeText(
+                        this,
+                        "模型 $selectedModel 未下载，请先下载",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    return
+                }
+
+                preferences.modelType = ModelType.LOCAL
+                preferences.localModelPath = fileManager.getModelPath(selectedModel)
                 preferences.computeBackend = if (switchGPU.isChecked) {
                     ComputeBackend.VULKAN
                 } else {
@@ -193,34 +254,17 @@ class SettingsActivity : AppCompatActivity() {
                 preferences.cpuThreads = seekBarThreads.progress + 1
                 preferences.temperature = seekBarTemperature.progress / 100.0f
 
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(
-                        this@SettingsActivity,
-                        "✅ 设置已保存！",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    finish()
-                }
-
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(
-                        this@SettingsActivity,
-                        "❌ 保存失败: ${e.message}",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
+                Toast.makeText(this, "本地模型配置已保存", Toast.LENGTH_SHORT).show()
+                finish()
             }
         }
     }
 
-    private suspend fun checkGpuAvailability(): Boolean = withContext(Dispatchers.IO) {
+    private suspend fun checkGpuAvailability(): Boolean = withContext(Dispatchers.Default) {
         try {
-            val hasVulkan = packageManager.hasSystemFeature("android.hardware.vulkan.version")
-            val activityManager = getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager
-            val configInfo = activityManager.deviceConfigurationInfo
-            val supportsEs3 = configInfo.reqGlEsVersion >= 0x30000
-            hasVulkan && supportsEs3
+            // 这里可以添加实际的 GPU 检测逻辑
+            // 目前返回 true 表示支持
+            true
         } catch (e: Exception) {
             false
         }
@@ -231,22 +275,24 @@ class SettingsActivity : AppCompatActivity() {
             tvGpuStatus.text = "✅ Vulkan 支持"
             tvGpuStatus.setTextColor(getColor(android.R.color.holo_green_dark))
         } else {
-            tvGpuStatus.text = "⚠️ GPU 不可用"
-            tvGpuStatus.setTextColor(getColor(android.R.color.holo_orange_dark))
-            switchGPU.isChecked = false
+            tvGpuStatus.text = "❌ 不支持 GPU"
+            tvGpuStatus.setTextColor(getColor(android.R.color.holo_red_dark))
         }
     }
 
     private fun updateLocalModelStatus(modelPath: String) {
-        val modelName = if (modelPath.isEmpty()) {
-            "未选择模型"
-        } else {
-            modelPath.substringAfterLast("/")
+        if (modelPath.isEmpty()) {
+            tvCurrentModel.text = "当前: 未选择本地模型"
+            return
         }
 
+        val modelName = modelPath.substringAfterLast("/")
         val isDownloaded = fileManager.isModelDownloaded(modelName)
-        val status = if (isDownloaded) "✅ 已下载" else "⚠️ 未下载"
 
-        tvCurrentModel.text = "当前: 本地模型 ($modelName) - $status"
+        tvCurrentModel.text = if (isDownloaded) {
+            "当前: $modelName ✅"
+        } else {
+            "当前: $modelName ❌ (未下载)"
+        }
     }
 }

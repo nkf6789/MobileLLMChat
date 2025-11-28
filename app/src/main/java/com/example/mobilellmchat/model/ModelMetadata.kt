@@ -32,9 +32,9 @@ data class ModelMetadata(
          * 预定义模型列表
          *
          * 🔗 模型来源：
-         * - Qwen2: https://huggingface.co/Qwen/Qwen2-0.5B-Instruct-GGUF
-         * - Phi-2: https://huggingface.co/microsoft/phi-2-gguf
-         * - TinyLlama: https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0-GGUF
+         * - Qwen2: https://hf-mirror.com/Qwen/Qwen2-0.5B-Instruct-GGUF
+         * - Phi-2: https://hf-mirror.com/microsoft/phi-2-gguf
+         * - TinyLlama: https://hf-mirror.com/TinyLlama/TinyLlama-1.1B-Chat-v1.0-GGUF
          */
         fun getAvailableModels(): List<ModelMetadata> {
             return listOf(
@@ -42,8 +42,8 @@ data class ModelMetadata(
                     name = "qwen2-0.5b-instruct-q4_0.gguf",
                     displayName = "Qwen2-0.5B 指令模型",
                     size = 352_000_000, // ~336 MB
-                    url = "https://huggingface.co/Qwen/Qwen2-0.5B-Instruct-GGUF/resolve/main/qwen2-0_5b-instruct-q4_0.gguf",
-                    sha256 = "待补充", // 实际使用时需要验证
+                    url = "https://hf-mirror.com/Qwen/Qwen2-0.5B-Instruct-GGUF/resolve/main/qwen2-0_5b-instruct-q4_0.gguf",
+                    sha256 = "待补充",
                     requiredRam = 512,
                     quantization = "Q4_0",
                     description = "轻量级中文对话模型，适合手机运行"
@@ -52,17 +52,17 @@ data class ModelMetadata(
                     name = "qwen2-1.5b-instruct-q4_0.gguf",
                     displayName = "Qwen2-1.5B 指令模型",
                     size = 934_000_000, // ~891 MB
-                    url = "https://huggingface.co/Qwen/Qwen2-1.5B-Instruct-GGUF/resolve/main/qwen2-1_5b-instruct-q4_0.gguf",
+                    url = "https://hf-mirror.com/Qwen/Qwen2-1.5B-Instruct-GGUF/resolve/main/qwen2-1_5b-instruct-q4_0.gguf",
                     sha256 = "待补充",
                     requiredRam = 2048,
                     quantization = "Q4_0",
-                    description = "中等规模中文对话模型，效果更好"
+                    description = "中等规模中文对话模型,效果更好"
                 ),
                 ModelMetadata(
                     name = "phi-2-q4_0.gguf",
                     displayName = "Phi-2 模型",
                     size = 1_600_000_000, // ~1.5 GB
-                    url = "https://huggingface.co/microsoft/phi-2-gguf/resolve/main/phi-2-q4_0.gguf",
+                    url = "https://hf-mirror.com/microsoft/phi-2-gguf/resolve/main/phi-2-q4_0.gguf",
                     sha256 = "待补充",
                     requiredRam = 3072,
                     quantization = "Q4_0",
@@ -72,7 +72,7 @@ data class ModelMetadata(
                     name = "tinyllama-1.1b-chat-q4_0.gguf",
                     displayName = "TinyLlama-1.1B 对话模型",
                     size = 669_000_000, // ~638 MB
-                    url = "https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_0.gguf",
+                    url = "https://hf-mirror.com/TinyLlama/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_0.gguf",
                     sha256 = "待补充",
                     requiredRam = 1536,
                     quantization = "Q4_0",

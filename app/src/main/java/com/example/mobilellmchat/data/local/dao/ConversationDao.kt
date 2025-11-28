@@ -1,4 +1,4 @@
-package com.example.mobilellmchat.data.local
+package com.example.mobilellmchat.data.local.dao  // ✅ 修复：正确的包路径
 
 import androidx.room.Dao
 import androidx.room.Insert

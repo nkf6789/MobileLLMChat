@@ -39,10 +39,11 @@ import com.example.mobilellmchat.viewmodel.ChatViewModelFactory
 class MainActivity : AppCompatActivity() {
 
     private val viewModel: ChatViewModel by viewModels {
-        val database = AppDatabase.getInstance(applicationContext)
+        val database = AppDatabase.getDatabase(applicationContext)  // ✅ 修复
         val repository = ChatRepository(database)
         ChatViewModelFactory(application, repository)
     }
+
 
     private lateinit var toolbar: Toolbar
     private lateinit var drawerLayout: DrawerLayout

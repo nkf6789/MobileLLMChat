@@ -2,24 +2,25 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- ========== 权限声明 ========== -->
+
     <!-- 网络权限 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- 存储权限（Android 13+ 可选） -->
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32"
-        tools:ignore="ScopedStorage" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
-
-    <!-- 前台服务权限 -->
+    <!-- 前台服务权限（下载功能） -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <!-- 通知权限（Android 13+） -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- 存储权限（读写模型文件） -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32"
+        tools:ignore="ScopedStorage" />
 
     <application
         android:allowBackup="true"
@@ -30,46 +31,64 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.MobileLLMChat"
+        android:usesCleartextTraffic="true"
         tools:targetApi="31">
 
-        <!-- 主页面 -->
+        <!-- ========== 主活动（启动页） ========== -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:windowSoftInputMode="adjustResize">
+            android:label="@string/app_name"
+            android:theme="@style/Theme.MobileLLMChat">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- 设置页面 -->
+        <!-- ========== 聊天活动 ========== -->
+        <activity
+            android:name=".ChatActivity"
+            android:exported="false"
+            android:label="AI 对话"
+            android:parentActivityName=".MainActivity"
+            android:windowSoftInputMode="adjustResize">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".MainActivity" />
+        </activity>
+
+        <!-- ========== 设置活动 ========== -->
         <activity
             android:name=".SettingsActivity"
             android:exported="false"
-            android:label="模型设置"
+            android:label="设置"
             android:parentActivityName=".MainActivity">
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
                 android:value=".MainActivity" />
         </activity>
 
-        <!-- 在现有的 MainActivity 下方添加 -->
+        <!-- ========== 下载管理活动（新增） ========== -->
         <activity
             android:name=".DownloadActivity"
             android:exported="false"
             android:label="模型下载管理"
-            android:parentActivityName=".MainActivity"
-            android:theme="@style/Theme.MobileLLMChat" />
+            android:parentActivityName=".SettingsActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".SettingsActivity" />
+        </activity>
 
 
-        <!-- 模型下载服务 -->
+
+
+        <!-- ========== 模型下载服务（新增） ========== -->
         <service
             android:name=".service.ModelDownloadService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
-
 
     </application>
 

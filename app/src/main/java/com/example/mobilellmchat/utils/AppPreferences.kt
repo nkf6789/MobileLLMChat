@@ -5,214 +5,114 @@ import android.content.SharedPreferences
 import com.example.mobilellmchat.model.ComputeBackend
 import com.example.mobilellmchat.model.ModelType
 
-/**
- * 应用配置管理类
- *
- * 使用 SharedPreferences 持久化存储：
- * - 模型类型选择（远端/本地）
- * - 本地模型配置参数
- * - GPU/CPU 计算设置
- *
- * 特性：
- * - 线程安全（SharedPreferences 内部已同步）
- * - 类型安全（属性委托）
- * - 默认值处理
- *
- * @author AI-Assisted
- * @since Sprint 1
- * [MODIFIED] Sprint 2 - 优化属性访问，移除冗余方法
- */
 class AppPreferences(context: Context) {
 
-    companion object {
-        private const val PREFS_NAME = "mobile_llm_chat_prefs"
-
-        // Key 常量
-        private const val KEY_MODEL_TYPE = "model_type"
-        private const val KEY_LOCAL_MODEL_NAME = "local_model_name"
-        private const val KEY_LOCAL_MODEL_PATH = "local_model_path"
-        private const val KEY_COMPUTE_BACKEND = "compute_backend"
-        private const val KEY_CPU_THREADS = "cpu_threads"
-        private const val KEY_TEMPERATURE = "temperature"
-        private const val KEY_TOP_P = "top_p"
-        private const val KEY_MAX_TOKENS = "max_tokens"
-        private const val KEY_CONTEXT_LENGTH = "context_length"
-        private const val KEY_FIRST_LAUNCH = "first_launch"
-
-        // 默认值
-        private const val DEFAULT_MODEL_NAME = "qwen2-0.5b-instruct-q4_k_m.gguf"
-        private const val DEFAULT_CPU_THREADS = 4
-        private const val DEFAULT_TEMPERATURE = 0.7f
-        private const val DEFAULT_TOP_P = 0.9f
-        private const val DEFAULT_MAX_TOKENS = 512
-        private const val DEFAULT_CONTEXT_LENGTH = 2048
-    }
-
     private val prefs: SharedPreferences = context.getSharedPreferences(
-        PREFS_NAME,
+        "app_preferences",
         Context.MODE_PRIVATE
     )
 
-    // ==================== 模型类型配置 ====================
+    // ========== 模型类型 ==========
 
-    /**
-     * 当前使用的模型类型
-     * 默认：REMOTE（远端豆包API）
-     */
     var modelType: ModelType
         get() {
-            val typeString = prefs.getString(KEY_MODEL_TYPE, ModelType.REMOTE.name)
+            val value = prefs.getString("model_type", ModelType.REMOTE.name)
             return try {
-                ModelType.valueOf(typeString ?: ModelType.REMOTE.name)
+                ModelType.valueOf(value ?: ModelType.REMOTE.name)
             } catch (e: IllegalArgumentException) {
                 ModelType.REMOTE
             }
         }
-        set(value) {
-            prefs.edit().putString(KEY_MODEL_TYPE, value.name).apply()
-        }
+        set(value) = prefs.edit().putString("model_type", value.name).apply()
 
-    /**
-     * 本地模型文件名
-     * 默认：qwen2-0.5b-instruct-q4_k_m.gguf
-     */
-    var localModelName: String
-        get() = prefs.getString(KEY_LOCAL_MODEL_NAME, DEFAULT_MODEL_NAME)
-            ?: DEFAULT_MODEL_NAME
-        set(value) {
-            prefs.edit().putString(KEY_LOCAL_MODEL_NAME, value).apply()
-        }
+    // ========== 本地模型配置 ==========
 
-    /**
-     * 本地模型完整路径
-     * 用于 SettingsActivity 保存选中的模型路径
-     */
     var localModelPath: String
-        get() = prefs.getString(KEY_LOCAL_MODEL_PATH, "") ?: ""
-        set(value) {
-            prefs.edit().putString(KEY_LOCAL_MODEL_PATH, value).apply()
-            // 同步更新 modelName
-            if (value.isNotEmpty()) {
-                localModelName = value.substringAfterLast("/")
-            }
-        }
+        get() = prefs.getString("local_model_path", "") ?: ""
+        set(value) = prefs.edit().putString("local_model_path", value).apply()
 
-    // ==================== 计算后端配置 ====================
+    var contextLength: Int
+        get() = prefs.getInt("context_length", 2048)
+        set(value) = prefs.edit().putInt("context_length", value).apply()
 
-    /**
-     * 计算后端类型
-     * 默认：AUTO（自动检测）
-     */
+    var cpuThreads: Int
+        get() = prefs.getInt("cpu_threads", 4)
+        set(value) = prefs.edit().putInt("cpu_threads", value).apply()
+
     var computeBackend: ComputeBackend
         get() {
-            val backendString = prefs.getString(KEY_COMPUTE_BACKEND, ComputeBackend.AUTO.name)
-            return ComputeBackend.fromString(backendString)
+            val value = prefs.getString("compute_backend", ComputeBackend.CPU.name)
+            return try {
+                ComputeBackend.valueOf(value ?: ComputeBackend.CPU.name)
+            } catch (e: IllegalArgumentException) {
+                ComputeBackend.CPU
+            }
         }
-        set(value) {
-            prefs.edit().putString(KEY_COMPUTE_BACKEND, value.name).apply()
-        }
+        set(value) = prefs.edit().putString("compute_backend", value.name).apply()
 
-    /**
-     * GPU 加速开关（便捷属性）
-     * 读取：判断 computeBackend 是否为 VULKAN
-     * 写入：设置为 VULKAN 或 CPU
-     */
-    var useGPU: Boolean
-        get() = computeBackend == ComputeBackend.VULKAN
-        set(value) {
-            computeBackend = if (value) ComputeBackend.VULKAN else ComputeBackend.CPU
-        }
-
-    /**
-     * CPU 线程数（1-8）
-     * 默认：4
-     */
-    var cpuThreads: Int
-        get() = prefs.getInt(KEY_CPU_THREADS, DEFAULT_CPU_THREADS)
-            .coerceIn(1, 8)
-        set(value) {
-            prefs.edit().putInt(KEY_CPU_THREADS, value.coerceIn(1, 8)).apply()
-        }
-
-    // ==================== 推理参数配置 ====================
-
-    /**
-     * 温度参数（0.0-2.0）
-     * 默认：0.7
-     */
     var temperature: Float
-        get() = prefs.getFloat(KEY_TEMPERATURE, DEFAULT_TEMPERATURE)
-            .coerceIn(0.0f, 2.0f)
-        set(value) {
-            prefs.edit().putFloat(KEY_TEMPERATURE, value.coerceIn(0.0f, 2.0f)).apply()
-        }
+        get() = prefs.getFloat("temperature", 0.7f)
+        set(value) = prefs.edit().putFloat("temperature", value).apply()
 
-    /**
-     * Top-P 采样参数（0.0-1.0）
-     * 默认：0.9
-     */
     var topP: Float
-        get() = prefs.getFloat(KEY_TOP_P, DEFAULT_TOP_P)
-            .coerceIn(0.0f, 1.0f)
+        get() = prefs.getFloat("top_p", 0.9f)
+        set(value) = prefs.edit().putFloat("top_p", value).apply()
+
+    var topK: Int
+        get() = prefs.getInt("top_k", 40)
+        set(value) = prefs.edit().putInt("top_k", value).apply()
+
+    var repeatPenalty: Float
+        get() = prefs.getFloat("repeat_penalty", 1.1f)
+        set(value) = prefs.edit().putFloat("repeat_penalty", value).apply()
+
+    // ========== 云端模型配置 ========== ✅ 修改这部分
+
+    var apiKey: String
+        get() = prefs.getString("api_key", "3eb16ff0-7721-4ca8-a63c-6854d8839fdf") ?: ""
+        set(value) = prefs.edit().putString("api_key", value).apply()
+
+    var baseUrl: String
+        get() {
+            val url = prefs.getString("base_url", "https://ark.cn-beijing.volces.com/api/v3/") ?: ""
+            // ✅ 自动补末尾斜杠
+            return if (url.endsWith("/")) url else "$url/"
+        }
         set(value) {
-            prefs.edit().putFloat(KEY_TOP_P, value.coerceIn(0.0f, 1.0f)).apply()
+            // ✅ 保存时也自动补斜杠
+            val normalized = if (value.endsWith("/")) value else "$value/"
+            prefs.edit().putString("base_url", normalized).apply()
         }
 
-    /**
-     * 最大生成 token 数
-     * 默认：512
-     */
+    var modelName: String
+        get() = prefs.getString("model_name", "ep-20241226114801-lxkhw") ?: ""
+        set(value) = prefs.edit().putString("model_name", value).apply()
+
     var maxTokens: Int
-        get() = prefs.getInt(KEY_MAX_TOKENS, DEFAULT_MAX_TOKENS)
-        set(value) {
-            prefs.edit().putInt(KEY_MAX_TOKENS, value).apply()
-        }
+        get() = prefs.getInt("max_tokens", 2048)
+        set(value) = prefs.edit().putInt("max_tokens", value).apply()
 
-    /**
-     * 上下文长度
-     * 默认：2048
-     */
-    var contextLength: Int
-        get() = prefs.getInt(KEY_CONTEXT_LENGTH, DEFAULT_CONTEXT_LENGTH)
-        set(value) {
-            prefs.edit().putInt(KEY_CONTEXT_LENGTH, value).apply()
-        }
+    // ========== 应用设置 ==========
 
-    // ==================== 应用状态 ====================
+    var enableStreaming: Boolean
+        get() = prefs.getBoolean("enable_streaming", true)
+        set(value) = prefs.edit().putBoolean("enable_streaming", value).apply()
 
-    /**
-     * 是否首次启动
-     * 用于显示引导页或下载提示
-     */
-    var isFirstLaunch: Boolean
-        get() = prefs.getBoolean(KEY_FIRST_LAUNCH, true)
-        set(value) {
-            prefs.edit().putBoolean(KEY_FIRST_LAUNCH, value).apply()
-        }
+    var enableAutoSave: Boolean
+        get() = prefs.getBoolean("enable_auto_save", true)
+        set(value) = prefs.edit().putBoolean("enable_auto_save", value).apply()
 
-    // ==================== 工具方法 ====================
+    // ========== 辅助方法 ==========
 
-    /**
-     * 重置所有配置为默认值
-     */
-    fun resetToDefaults() {
+    fun clearAll() {
         prefs.edit().clear().apply()
     }
 
-    /**
-     * 获取当前配置的调试信息
-     */
-    fun getDebugInfo(): String {
-        return """
-            |模型类型: $modelType
-            |本地模型: $localModelName
-            |本地路径: $localModelPath
-            |计算后端: $computeBackend
-            |CPU线程: $cpuThreads
-            |温度: $temperature
-            |Top-P: $topP
-            |最大Token: $maxTokens
-            |上下文长度: $contextLength
-        """.trimMargin()
+    fun hasValidApiKey(): Boolean {
+        return apiKey.isNotEmpty()
+    }
+
+    fun hasValidLocalModel(): Boolean {
+        return localModelPath.isNotEmpty()
     }
 }

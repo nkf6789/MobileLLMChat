@@ -86,9 +86,9 @@ class RemoteLLMService(
     override fun getModelInfo(): ModelInfo {
         return ModelInfo(
             name = "豆包大模型",
-            type = ModelType.REMOTE,
-            sizeInMB = 0,
-            isReady = true
+            type = "REMOTE",           // ✅ 修复：String 类型
+            backend = "Cloud API",     // ✅ 修复：新增必需参数
+            status = "Ready"           // ✅ 修复：新增必需参数
         )
     }
 

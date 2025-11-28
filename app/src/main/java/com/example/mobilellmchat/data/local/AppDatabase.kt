@@ -4,29 +4,47 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import com.example.mobilellmchat.data.local.entity.ConversationEntity
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
+import com.example.mobilellmchat.data.local.dao.ConversationDao
 import com.example.mobilellmchat.data.local.entity.ChatMessageEntity
+import com.example.mobilellmchat.data.local.entity.ConversationEntity
 
-@Database(entities = [ConversationEntity::class, ChatMessageEntity::class], version = 1, exportSchema = false)
+@Database(
+    entities = [
+        ConversationEntity::class,
+        ChatMessageEntity::class
+    ],
+    version = 1,
+    exportSchema = false
+)
 abstract class AppDatabase : RoomDatabase() {
+
     abstract fun conversationDao(): ConversationDao
-    // 确保你的 ChatRepository 中使用的是 conversationDao() 还是 chatDao()，请保持一致
-    // 如果之前代码用的是 chatDao，请在这里加一行 abstract fun chatDao(): ChatDao
 
     companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
-        fun getInstance(context: Context): AppDatabase {
+        fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
-                    "chat_database"
-                ).fallbackToDestructiveMigration() // 开发阶段允许重建数据库
+                    "mobilellm_database"
+                )
+                    .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
                 instance
+            }
+        }
+
+        // 未来版本升级时使用的迁移示例
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // 示例：添加新字段
+                // database.execSQL("ALTER TABLE conversations ADD COLUMN new_column TEXT")
             }
         }
     }

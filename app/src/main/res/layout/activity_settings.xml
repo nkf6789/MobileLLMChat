@@ -73,6 +73,7 @@
                         android:id="@+id/rbRemote"
                         android:layout_width="match_parent"
                         android:layout_height="48dp"
+                        android:checked="true"
                         android:text="☁️ 云端模型 (豆包)"
                         android:textSize="15sp" />
 
@@ -84,7 +85,6 @@
                         android:textSize="15sp" />
                 </RadioGroup>
 
-                <!-- 当前状态显示 -->
                 <TextView
                     android:id="@+id/tvCurrentModel"
                     android:layout_width="match_parent"
@@ -98,11 +98,95 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- 本地模型配置卡片 (初始隐藏) -->
+        <!-- ✅ 新增：远程模型配置卡片 -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/cardRemoteConfig"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:visibility="visible"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="2dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="远程模型配置"
+                    android:textColor="#1F2329"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="16dp" />
+
+                <!-- API Key -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="API Key"
+                    android:textColor="#646A73"
+                    android:textSize="14sp" />
+
+                <EditText
+                    android:id="@+id/etApiKey"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="16dp"
+                    android:background="@android:drawable/edit_text"
+                    android:hint="请输入 API Key"
+                    android:inputType="text"
+                    android:padding="12dp" />
+
+                <!-- Base URL -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Base URL"
+                    android:textColor="#646A73"
+                    android:textSize="14sp" />
+
+                <EditText
+                    android:id="@+id/etBaseUrl"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="16dp"
+                    android:background="@android:drawable/edit_text"
+                    android:hint="https://ark.cn-beijing.volces.com/api/v3/"
+                    android:inputType="textUri"
+                    android:padding="12dp" />
+
+                <!-- Model Name -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="模型名称"
+                    android:textColor="#646A73"
+                    android:textSize="14sp" />
+
+                <EditText
+                    android:id="@+id/etModelName"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="8dp"
+                    android:background="@android:drawable/edit_text"
+                    android:hint="ep-xxxxx"
+                    android:inputType="text"
+                    android:padding="12dp" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- 本地模型配置卡片 -->
         <androidx.cardview.widget.CardView
             android:id="@+id/cardLocalConfig"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
             android:visibility="gone"
             app:cardCornerRadius="8dp"
             app:cardElevation="2dp">
@@ -122,7 +206,6 @@
                     android:textStyle="bold"
                     android:layout_marginBottom="16dp" />
 
-                <!-- 模型选择 -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -139,7 +222,6 @@
                     android:background="@android:drawable/edit_text"
                     android:padding="12dp" />
 
-                <!-- 下载按钮 -->
                 <Button
                     android:id="@+id/btnDownloadModel"
                     android:layout_width="match_parent"
@@ -148,7 +230,6 @@
                     android:text="📥 下载新模型"
                     android:textAllCaps="false" />
 
-                <!-- GPU 加速开关 -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -185,7 +266,6 @@
                         android:layout_height="wrap_content" />
                 </LinearLayout>
 
-                <!-- CPU 线程数 -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -221,7 +301,6 @@
                         android:textStyle="bold" />
                 </LinearLayout>
 
-                <!-- 温度参数 -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
