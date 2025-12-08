@@ -151,39 +151,44 @@ class DownloadActivity : AppCompatActivity() {
     }
 
     private fun loadModels() {
-        val testModel = ModelMetadata(
-            name = "test-tiny-model-q4_0.gguf",
-            displayName = "测试模型（TinyLlama 20MB）",
-            size = 20_000_000L,
-            requiredRam = 128,
-            url = "https://hf-mirror.com/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_0.gguf",  // ✅ 改为镜像站
-            sha256 = "",
-            description = "用于验证下载功能的超小型测试模型（仅20MB）"
-        )
-
+        // ✅ 更新：使用 HuggingFace 镜像站的真实链接
         val qwen2Model = ModelMetadata(
             name = "qwen2-0.5b-instruct-q4_0.gguf",
-            displayName = "Qwen2-0.5B 指令模型",
-            size = 352_000_000L,
+            displayName = "Qwen2-0.5B 中文对话模型",
+            size = 352_000_000L,  // 约 336 MB
             requiredRam = 512,
-            url = "https://hf-mirror.com/Qwen/Qwen2-0.5B-Instruct-GGUF/resolve/main/qwen2-0_5b-instruct-q4_0.gguf",  // ✅ 改为镜像站
+            url = "https://hf-mirror.com/Qwen/Qwen2-0.5B-Instruct-GGUF/resolve/main/qwen2-0_5b-instruct-q4_0.gguf",
             sha256 = "",
-            description = "轻量级中文对话模型，适合手机运行"
+            description = "阿里云千问 0.5B 模型，中文能力强，适合手机运行"
         )
 
+        // ✅ 可选：保留 TinyLlama 作为备选
+        val tinyLlamaModel = ModelMetadata(
+            name = "tinyllama-1.1b-chat-q4_0.gguf",
+            displayName = "TinyLlama 1.1B (已预置)",
+            size = 607_000_000L,
+            requiredRam = 1024,
+            url = "https://hf-mirror.com/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_0.gguf",
+            sha256 = "",
+            description = "预置的英文对话模型（无需下载）"
+        )
 
         availableModels.clear()
         downloadedModels.clear()
 
         val fileManager = ModelFileManager.getInstance(this)
 
-        listOf(testModel, qwen2Model).forEach { model ->
+        // ✅ 检查哪些模型已下载
+        listOf(qwen2Model, tinyLlamaModel).forEach { model ->
             val modelDir = fileManager.getModelDir()
             val modelFile = File(modelDir, model.name)
             if (modelFile.exists() && modelFile.length() > 0) {
                 downloadedModels.add(model)
             } else {
-                availableModels.add(model)
+                // TinyLlama 已预置，不显示在可下载列表中
+                if (model.name != "tinyllama-1.1b-chat-q4_0.gguf") {
+                    availableModels.add(model)
+                }
             }
         }
 

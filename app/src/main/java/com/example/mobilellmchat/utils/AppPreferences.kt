@@ -89,7 +89,7 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putString("model_name", value).apply()
 
     var maxTokens: Int
-        get() = prefs.getInt("max_tokens", 2048)
+        get() = prefs.getInt("max_tokens", 512)
         set(value) = prefs.edit().putInt("max_tokens", value).apply()
 
     // ========== 应用设置 ==========

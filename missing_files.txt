@@ -1,0 +1,693 @@
+
+========== app\src\main\java\com\example\mobilellmchat\adapter\ChatAdapter.kt ==========
+
+package com.example.mobilellmchat.adapter
+
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.ImageButton
+import android.widget.TextView
+import android.widget.Toast
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
+import androidx.recyclerview.widget.RecyclerView
+import com.example.mobilellmchat.R
+import com.example.mobilellmchat.model.Message
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+class ChatAdapter(
+    private val onLikeClick: (Message) -> Unit,
+    private val onFavoriteClick: (Message) -> Unit
+) : ListAdapter<Message, RecyclerView.ViewHolder>(MessageDiffCallback()) {
+
+    companion object {
+        private const val VIEW_TYPE_USER = 1
+        private const val VIEW_TYPE_AI = 2
+    }
+
+    override fun getItemViewType(position: Int): Int {
+        // 假设 Role "user" 是用户，其他都是 AI
+        return if (getItem(position).role == "user") VIEW_TYPE_USER else VIEW_TYPE_AI
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        return if (viewType == VIEW_TYPE_USER) {
+            val view = LayoutInflater.from(parent.context)
+                .inflate(R.layout.item_message_user, parent, false)
+            UserMessageViewHolder(view)
+        } else {
+            val view = LayoutInflater.from(parent.context)
+                .inflate(R.layout.item_message_ai, parent, false)
+            AiMessageViewHolder(view, onLikeClick, onFavoriteClick)
+        }
+    }
+
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+        val message = getItem(position)
+        if (holder is UserMessageViewHolder) {
+            holder.bind(message)
+        } else if (holder is AiMessageViewHolder) {
+            holder.bind(message)
+        }
+    }
+
+    // 用户消息 ViewHolder (保持简单，也可以加复制功能)
+    class UserMessageViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val contentTextView: TextView = itemView.findViewById(R.id.tvContent)
+        private val timeTextView: TextView = itemView.findViewById(R.id.tvTime)
+
+        fun bind(message: Message) {
+            contentTextView.text = message.content
+            timeTextView.text = formatTime(message.timestamp)
+        }
+    }
+
+    // AI 消息 ViewHolder (包含互动逻辑)
+    class AiMessageViewHolder(
+        itemView: View,
+        private val onLikeClick: (Message) -> Unit,
+        private val onFavoriteClick: (Message) -> Unit
+    ) : RecyclerView.ViewHolder(itemView) {
+        private val contentTextView: TextView = itemView.findViewById(R.id.tvContent)
+        private val timeTextView: TextView = itemView.findViewById(R.id.tvTime)
+        private val btnLike: ImageButton = itemView.findViewById(R.id.btnLike)
+        private val btnFavorite: ImageButton = itemView.findViewById(R.id.btnFavorite)
+        private val btnCopy: ImageButton = itemView.findViewById(R.id.btnCopy)
+
+        fun bind(message: Message) {
+            contentTextView.text = message.content
+            timeTextView.text = formatTime(message.timestamp)
+
+            // 1. 设置视觉状态：isSelected 会触�?selector xml 切换图标颜色
+            btnLike.isSelected = message.isLiked
+            btnFavorite.isSelected = message.isFavorited
+
+            // 2. 设置点击监听 (调用 Activity/ViewModel 的逻辑)
+            btnLike.setOnClickListener { onLikeClick(message) }
+            btnFavorite.setOnClickListener { onFavoriteClick(message) }
+
+            // 3. 实现复制功能 (直接在这里实现，最简单有�?
+            btnCopy.setOnClickListener {
+                copyToClipboard(itemView.context, message.content)
+            }
+        }
+
+        private fun copyToClipboard(context: Context, text: String) {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = ClipData.newPlainText("Chat Content", text)
+            clipboard.setPrimaryClip(clip)
+            Toast.makeText(context, "已复制到剪贴�?, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private class MessageDiffCallback : DiffUtil.ItemCallback<Message>() {
+        override fun areItemsTheSame(oldItem: Message, newItem: Message): Boolean {
+            return oldItem.id == newItem.id
+        }
+
+        override fun areContentsTheSame(oldItem: Message, newItem: Message): Boolean {
+            // 必须完全比较内容，包括点赞状态，才能触发 UI 刷新
+            return oldItem == newItem
+        }
+    }
+}
+
+private fun formatTime(timestamp: Long): String {
+    val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
+    return sdf.format(Date(timestamp))
+}
+
+========== app\src\main\java\com\example\mobilellmchat\adapter\ConversationAdapter.kt ==========
+
+package com.example.mobilellmchat.adapter
+
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.TextView
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
+import androidx.recyclerview.widget.RecyclerView
+import com.example.mobilellmchat.R
+import com.example.mobilellmchat.data.local.entity.ConversationEntity
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+class ConversationAdapter(
+    private val onClick: (ConversationEntity) -> Unit
+) : ListAdapter<ConversationEntity, ConversationAdapter.ViewHolder>(DiffCallback()) {
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+        val view = LayoutInflater.from(parent.context)
+            .inflate(R.layout.item_conversation, parent, false)
+        return ViewHolder(view, onClick)
+    }
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        holder.bind(getItem(position))
+    }
+
+    class ViewHolder(itemView: View, val onClick: (ConversationEntity) -> Unit) : RecyclerView.ViewHolder(itemView) {
+        private val tvTitle: TextView = itemView.findViewById(R.id.tvTitle)
+        private val tvTime: TextView = itemView.findViewById(R.id.tvTime)
+
+        fun bind(item: ConversationEntity) {
+            tvTitle.text = item.title
+            val sdf = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
+            tvTime.text = sdf.format(Date(item.timestamp))
+            itemView.setOnClickListener { onClick(item) }
+        }
+    }
+
+    class DiffCallback : DiffUtil.ItemCallback<ConversationEntity>() {
+        override fun areItemsTheSame(oldItem: ConversationEntity, newItem: ConversationEntity) = oldItem.id == newItem.id
+        override fun areContentsTheSame(oldItem: ConversationEntity, newItem: ConversationEntity) = oldItem == newItem
+    }
+}
+
+========== app\src\main\java\com\example\mobilellmchat\adapter\AvailableModelsAdapter.kt ==========
+
+package com.example.mobilellmchat.adapter
+
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.Button
+import android.widget.TextView
+import androidx.recyclerview.widget.RecyclerView
+import com.example.mobilellmchat.R
+import com.example.mobilellmchat.model.ModelMetadata
+
+class AvailableModelsAdapter(
+    private val models: List<ModelMetadata>,
+    private val onDownloadClick: (ModelMetadata) -> Unit
+) : RecyclerView.Adapter<AvailableModelsAdapter.ViewHolder>() {
+
+    class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+        val tvModelName: TextView = view.findViewById(R.id.tvModelName)
+        val tvModelSize: TextView = view.findViewById(R.id.tvModelSize)
+        val tvModelDescription: TextView = view.findViewById(R.id.tvModelDescription)
+        val tvRequiredRam: TextView = view.findViewById(R.id.tvRequiredRam)
+        val btnDownload: Button = view.findViewById(R.id.btnDownload)
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+        val view = LayoutInflater.from(parent.context)
+            .inflate(R.layout.item_model_download, parent, false)
+        return ViewHolder(view)
+    }
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        val model = models[position]
+
+        holder.tvModelName.text = model.displayName
+        holder.tvModelSize.text = formatSize(model.size)
+        holder.tvModelDescription.text = model.description
+        holder.tvRequiredRam.text = "需要内�? ${model.requiredRam} MB"
+
+        holder.btnDownload.setOnClickListener {
+            onDownloadClick(model)
+        }
+    }
+
+    override fun getItemCount() = models.size
+
+    private fun formatSize(bytes: Long): String {
+        return when {
+            bytes < 1024 * 1024 -> "${bytes / 1024} KB"
+            bytes < 1024 * 1024 * 1024 -> "${bytes / (1024 * 1024)} MB"
+            else -> String.format("%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0))
+        }
+    }
+}
+
+========== app\src\main\java\com\example\mobilellmchat\adapter\DownloadedModelsAdapter.kt ==========
+
+package com.example.mobilellmchat.adapter
+
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.Button
+import android.widget.TextView
+import androidx.recyclerview.widget.RecyclerView
+import com.example.mobilellmchat.R
+import com.example.mobilellmchat.model.ModelMetadata
+import java.io.File
+
+class DownloadedModelsAdapter(
+    private val models: List<ModelMetadata>,
+    private val onDeleteClick: (ModelMetadata) -> Unit
+) : RecyclerView.Adapter<DownloadedModelsAdapter.ViewHolder>() {
+
+    class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+        val tvModelName: TextView = view.findViewById(R.id.tvDownloadedModelName)
+        val tvModelSize: TextView = view.findViewById(R.id.tvDownloadedModelSize)
+        val tvDownloadDate: TextView = view.findViewById(R.id.tvDownloadDate)
+        val btnDelete: Button = view.findViewById(R.id.btnDeleteModel)
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+        val view = LayoutInflater.from(parent.context)
+            .inflate(R.layout.item_model_downloaded, parent, false)
+        return ViewHolder(view)
+    }
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        val model = models[position]
+
+        holder.tvModelName.text = model.displayName
+        holder.tvModelSize.text = formatSize(model.size)
+        holder.tvDownloadDate.text = "已下�?
+
+        holder.btnDelete.setOnClickListener {
+            onDeleteClick(model)
+        }
+    }
+
+    override fun getItemCount() = models.size
+
+    private fun formatSize(bytes: Long): String {
+        return when {
+            bytes < 1024 * 1024 -> "${bytes / 1024} KB"
+            bytes < 1024 * 1024 * 1024 -> "${bytes / (1024 * 1024)} MB"
+            else -> String.format("%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0))
+        }
+    }
+}
+
+========== app\src\main\java\com\example\mobilellmchat\model\Message.kt ==========
+
+package com.example.mobilellmchat.model
+
+data class Message(
+    val id: Long,
+    val role: String,
+    val content: String,
+    val timestamp: Long,
+    val isLiked: Boolean,
+    val isFavorited: Boolean
+)
+
+========== app\src\main\java\com\example\mobilellmchat\model\ApiMessage.kt ==========
+
+package com.example.mobilellmchat.model
+
+data class ApiMessage(
+    val role: String,
+    val content: String
+)
+
+========== app\src\main\java\com\example\mobilellmchat\model\ModelType.kt ==========
+
+package com.example.mobilellmchat.model
+
+/**
+ * 模型类型枚举
+ */
+enum class ModelType {
+    REMOTE,  // 云端模型
+    LOCAL    // 本地模型
+}
+
+========== app\src\main\java\com\example\mobilellmchat\model\ComputeBackend.kt ==========
+
+package com.example.mobilellmchat.model
+
+/**
+ * 计算后端枚举
+ */
+enum class ComputeBackend {
+    CPU,      // CPU 计算
+    VULKAN,   // GPU (Vulkan)
+    AUTO      // 自动选择
+}
+
+========== app\src\main\java\com\example\mobilellmchat\model\LLMService.kt ==========
+
+package com.example.mobilellmchat.model
+
+/**
+ * LLM 服务抽象接口
+ *
+ * 定义大模型服务的统一调用规范，支持：
+ * - 远端 API 服务（豆包）
+ * - 本地端侧模型（llama.cpp�?
+ *
+ * 职责�?
+ * 1. 发送对话消息并获取回复
+ * 2. 提供模型信息查询
+ * 3. 支持生成控制（停止）
+ *
+ * @author AI-Assisted
+ * @since Sprint 1
+ */
+interface LLMService {
+
+    /**
+     * 发送聊天消息并获取 AI 回复
+     *
+     * @param messages 对话历史上下文（包含用户和AI的历史消息）
+     * @return AI 生成的回复文�?
+     * @throws Exception 网络错误、模型加载失败等异常
+     *
+     * 示例�?
+     * ```kotlin
+     * val messages = listOf(
+     *     ApiMessage(role = "user", content = "你好")
+     * )
+     * val reply = llmService.chat(messages)
+     * // reply: "你好！有什么我可以帮助你的吗？"
+     * ```
+     */
+    suspend fun chat(messages: List<ApiMessage>): String
+
+    /**
+     * 获取当前模型信息
+     *
+     * @return 模型配置和状态信�?
+     *
+     * 用途：
+     * - UI 展示当前使用的模�?
+     * - 调试时查看配�?
+     */
+    fun getModelInfo(): ModelInfo
+
+    /**
+     * 停止当前正在进行的生成任务（可选实现）
+     *
+     * 使用场景�?
+     * - 用户点击"停止生成"按钮
+     * - 切换到其他对�?
+     *
+     * 注意�?
+     * - 远端 API 可能不支持中途停�?
+     * - 本地模型可以立即终止推理
+     */
+    fun stopGeneration() {
+        // 默认空实现，子类可选择性重�?
+    }
+
+    /**
+     * 释放资源（可选实现）
+     *
+     * 使用场景�?
+     * - 应用退出时
+     * - 切换模型�?
+     *
+     * 注意�?
+     * - 本地模型需要释放加载的模型文件
+     * - 远端服务通常不需�?
+     */
+    fun release() {
+        // 默认空实�?
+    }
+}
+
+========== app\src\main\java\com\example\mobilellmchat\model\ModelInfo.kt ==========
+
+package com.example.mobilellmchat.model
+
+/**
+ * 模型信息数据�?
+ * 用于 LLMService.getModelInfo() 返回�?
+ */
+data class ModelInfo(
+    val name: String,
+    val type: String,
+    val backend: String,
+    val status: String
+)
+
+========== app\src\main\java\com\example\mobilellmchat\model\ModelMetadata.kt ==========
+
+package com.example.mobilellmchat.model
+
+import java.io.Serializable
+
+/**
+ * 模型元数�?
+ *
+ * @property name 模型文件名（�?qwen2-0.5b-instruct-q4_0.gguf�?
+ * @property displayName 显示名称（如 Qwen2-0.5B 指令模型�?
+ * @property size 文件大小（字节）
+ * @property url 下载地址
+ * @property sha256 SHA256 校验�?
+ * @property version 模型版本
+ * @property description 模型描述
+ * @property requiredRam 最低运行内存要求（MB�?
+ * @property quantization 量化类型（Q4_0/Q4_K_M 等）
+ */
+data class ModelMetadata(
+    val name: String,
+    val displayName: String,
+    val size: Long,
+    val url: String,
+    val sha256: String,
+    val version: String = "1.0",
+    val description: String = "",
+    val requiredRam: Int = 512,
+    val quantization: String = "Q4_0"
+) : Serializable {
+
+    companion object {
+        /**
+         * 预定义模型列�?
+         *
+         * 🔗 模型来源�?
+         * - Qwen2: https://hf-mirror.com/Qwen/Qwen2-0.5B-Instruct-GGUF
+         * - Phi-2: https://hf-mirror.com/microsoft/phi-2-gguf
+         * - TinyLlama: https://hf-mirror.com/TinyLlama/TinyLlama-1.1B-Chat-v1.0-GGUF
+         */
+        fun getAvailableModels(): List<ModelMetadata> {
+            return listOf(
+                ModelMetadata(
+                    name = "qwen2-0.5b-instruct-q4_0.gguf",
+                    displayName = "Qwen2-0.5B 指令模型",
+                    size = 352_000_000, // ~336 MB
+                    url = "https://hf-mirror.com/Qwen/Qwen2-0.5B-Instruct-GGUF/resolve/main/qwen2-0_5b-instruct-q4_0.gguf",
+                    sha256 = "待补�?,
+                    requiredRam = 512,
+                    quantization = "Q4_0",
+                    description = "轻量级中文对话模型，适合手机运行"
+                ),
+                ModelMetadata(
+                    name = "qwen2-1.5b-instruct-q4_0.gguf",
+                    displayName = "Qwen2-1.5B 指令模型",
+                    size = 934_000_000, // ~891 MB
+                    url = "https://hf-mirror.com/Qwen/Qwen2-1.5B-Instruct-GGUF/resolve/main/qwen2-1_5b-instruct-q4_0.gguf",
+                    sha256 = "待补�?,
+                    requiredRam = 2048,
+                    quantization = "Q4_0",
+                    description = "中等规模中文对话模型,效果更好"
+                ),
+                ModelMetadata(
+                    name = "phi-2-q4_0.gguf",
+                    displayName = "Phi-2 模型",
+                    size = 1_600_000_000, // ~1.5 GB
+                    url = "https://hf-mirror.com/microsoft/phi-2-gguf/resolve/main/phi-2-q4_0.gguf",
+                    sha256 = "待补�?,
+                    requiredRam = 3072,
+                    quantization = "Q4_0",
+                    description = "微软开源小模型，英文能力强"
+                ),
+                ModelMetadata(
+                    name = "tinyllama-1.1b-chat-q4_0.gguf",
+                    displayName = "TinyLlama-1.1B 对话模型",
+                    size = 669_000_000, // ~638 MB
+                    url = "https://hf-mirror.com/TinyLlama/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_0.gguf",
+                    sha256 = "待补�?,
+                    requiredRam = 1536,
+                    quantization = "Q4_0",
+                    description = "超轻量级英文对话模型"
+                )
+            )
+        }
+
+        /**
+         * 根据文件名获取元数据
+         */
+        fun getByName(name: String): ModelMetadata? {
+            return getAvailableModels().find { it.name == name }
+        }
+
+        /**
+         * 格式化文件大�?
+         */
+        fun formatSize(bytes: Long): String {
+            return when {
+                bytes < 1024 -> "$bytes B"
+                bytes < 1024 * 1024 -> "${bytes / 1024} KB"
+                bytes < 1024 * 1024 * 1024 -> "${bytes / (1024 * 1024)} MB"
+                else -> String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024))
+            }
+        }
+    }
+
+    /**
+     * 获取格式化后的文件大�?
+     */
+    fun getFormattedSize(): String = formatSize(size)
+
+    /**
+     * �?获取格式化后�?RAM 需�?
+     */
+    fun getFormattedRam(): String {
+        return when {
+            requiredRam >= 1024 -> "%.1f GB RAM".format(requiredRam / 1024.0)
+            else -> "$requiredRam MB RAM"
+        }
+    }
+}
+
+========== app\src\main\java\com\example\mobilellmchat\model\DownloadProgress.kt ==========
+
+package com.example.mobilellmchat.model
+
+import android.os.Parcelable
+import kotlinx.parcelize.Parcelize
+
+/**
+ * 下载进度数据�?
+ * �?�?ModelDownloadService �?DownloadActivity 完全匹配
+ */
+@Parcelize
+data class DownloadProgress(
+    val percent: Int,              // 下载百分比（0-100�?
+    val downloadedBytes: Long,     // 已下载字节数
+    val totalBytes: Long,          // 总字节数
+    val speed: Long,               // 下载速度（字�?秒）
+    val speedText: String,         // 格式化的速度文本
+    val timeLeft: Long,            // 剩余时间（秒�?
+    val timeLeftText: String       // 格式化的剩余时间文本
+) : Parcelable
+
+========== app\src\main\java\com\example\mobilellmchat\model\ChatRequest.kt ==========
+
+package com.example.mobilellmchat.model
+
+data class ChatRequest(
+    val model: String,
+    val messages: List<ApiMessage>, // 这里明确指定使用 ApiMessage
+    val stream: Boolean = false
+)
+
+========== app\src\main\java\com\example\mobilellmchat\api\DouBaoApiService.kt ==========
+
+package com.example.mobilellmchat.api
+
+import com.example.mobilellmchat.model.ChatRequest
+import com.example.mobilellmchat.model.ChatResponse
+import retrofit2.http.Body
+import retrofit2.http.Headers
+import retrofit2.http.POST
+
+interface DouBaoApiService {
+
+    @Headers("Content-Type: application/json")
+    @POST("chat/completions")
+    suspend fun sendMessage(
+        @Body request: ChatRequest
+    ): ChatResponse
+}
+
+========== app\src\main\java\com\example\mobilellmchat\data\local\dao\ConversationDao.kt ==========
+
+package com.example.mobilellmchat.data.local.dao  // �?修复：正确的包路�?
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import androidx.room.Update
+import com.example.mobilellmchat.data.local.entity.ChatMessageEntity
+import com.example.mobilellmchat.data.local.entity.ConversationEntity
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface ConversationDao {
+    // --- Conversations ---
+    @Query("SELECT * FROM conversations ORDER BY timestamp DESC")
+    fun getAllConversations(): Flow<List<ConversationEntity>>
+
+    @Query("SELECT * FROM conversations WHERE id = :id")
+    suspend fun getConversationById(id: Long): ConversationEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertConversation(conversation: ConversationEntity): Long
+
+    @Update
+    suspend fun updateConversation(conversation: ConversationEntity)
+
+    @Query("DELETE FROM conversations WHERE id = :id")
+    suspend fun deleteConversation(id: Long)
+
+    // --- Messages ---
+    @Query("SELECT * FROM chat_messages WHERE conversationId = :conversationId ORDER BY timestamp ASC")
+    fun getMessagesByConversation(conversationId: Long): Flow<List<ChatMessageEntity>>
+
+    // 同步方法，用于构�?API 上下�?
+    @Query("SELECT * FROM chat_messages WHERE conversationId = :conversationId ORDER BY timestamp ASC")
+    suspend fun getMessagesByConversationSync(conversationId: Long): List<ChatMessageEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMessage(message: ChatMessageEntity)
+
+    @Query("UPDATE chat_messages SET isLiked = :isLiked WHERE id = :id")
+    suspend fun updateLikeStatus(id: Long, isLiked: Boolean)
+
+    @Query("UPDATE chat_messages SET isFavorited = :isFavorited WHERE id = :id")
+    suspend fun updateFavoriteStatus(id: Long, isFavorited: Boolean)
+}
+
+========== app\src\main\java\com\example\mobilellmchat\data\local\entity\ConversationEntity.kt ==========
+
+package com.example.mobilellmchat.data.local.entity
+
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+
+@Entity(tableName = "conversations")
+data class ConversationEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val title: String,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+========== app\src\main\java\com\example\mobilellmchat\data\local\entity\ChatMessageEntity.kt ==========
+
+package com.example.mobilellmchat.data.local.entity
+
+import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
+import androidx.room.PrimaryKey
+
+@Entity(
+    tableName = "chat_messages",
+    foreignKeys = [
+        ForeignKey(
+            entity = ConversationEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["conversationId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index(value = ["conversationId"])]
+)
+data class ChatMessageEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val conversationId: Long,
+    val role: String, // "user" or "assistant"
+    val content: String,
+    val timestamp: Long = System.currentTimeMillis(),
+    val isLiked: Boolean = false,
+    val isFavorited: Boolean = false
+)

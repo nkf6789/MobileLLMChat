@@ -12,6 +12,7 @@ import com.example.mobilellmchat.model.ComputeBackend
 import com.example.mobilellmchat.model.ModelType
 import com.example.mobilellmchat.utils.AppPreferences
 import com.example.mobilellmchat.utils.ModelFileManager
+import com.example.mobilellmchat.utils.ModelAssetManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -45,11 +46,10 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var preferences: AppPreferences
     private lateinit var fileManager: ModelFileManager
 
+    // ✅ 包含预置模型 + 可下载模型
     private val availableModels = listOf(
-        "qwen2-0.5b-instruct-q4_0.gguf",
-        "qwen2-1.5b-instruct-q4_0.gguf",
-        "phi-2-q4_0.gguf",
-        "tinyllama-1.1b-chat-q4_0.gguf"
+        "tinyllama-1.1b-chat-q4_0.gguf",     // ✅ 预置模型（打包在APK中）
+        "qwen2-0.5b-instruct-q4_0.gguf"      // ✅ 可下载模型
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -60,6 +60,20 @@ class SettingsActivity : AppCompatActivity() {
         initViews()
         loadCurrentSettings()
         setupListeners()
+
+        // ✅ 首次运行时确保预置模型已复制
+        lifecycleScope.launch {
+            if (!ModelAssetManager.isPreinstalledModelReady(this@SettingsActivity)) {
+                Toast.makeText(
+                    this@SettingsActivity,
+                    "正在准备本地模型...",
+                    Toast.LENGTH_SHORT
+                ).show()
+
+                ModelAssetManager.ensurePreinstalledModel(this@SettingsActivity)
+                loadCurrentSettings()  // 重新加载设置
+            }
+        }
     }
 
     private fun initTools() {
@@ -166,6 +180,7 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         btnDownloadModel.setOnClickListener {
+            // ✅ 启用下载功能
             startActivity(Intent(this, DownloadActivity::class.java))
         }
 
