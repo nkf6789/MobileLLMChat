@@ -1,28 +1,35 @@
-# Android Studio
-*.iml
-.gradle
-/local.properties
-/.idea/
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
-local.properties
+# 临时文件（关键）
+temp*
+*.tmp
+*.gguf.bak  # 防止gguf临时备份文件
+temp_jar/
+temp_apk/
+temp_apk_new/
 
-# Gradle
-.gradle/
+# Android 构建产物（必加）
 build/
-
-# API Keys（重要！不要提交密钥）
-**/api_keys.properties
-**/secrets.properties
-
-# 其他
+app/build/
 *.apk
 *.ap_
-*.dex
-*.class
+*.aab
 bin/
 gen/
 out/
+release/
+debug/
+*.dex
+
+# 编辑器/系统文件
+.idea/
+.vscode/
+*.iml
+local.properties
+.DS_Store
+Thumbs.db
+*.log
+
+# 其他无需追踪的大文件/临时文件
+*.dll
+*.so
+*.dylib
+temp/
