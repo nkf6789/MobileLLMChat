@@ -151,18 +151,29 @@ class DownloadActivity : AppCompatActivity() {
     }
 
     private fun loadModels() {
-        // ✅ 更新：使用 HuggingFace 镜像站的真实链接
-        val qwen2Model = ModelMetadata(
+        // ✅ Q4 模型（原有）
+        val qwen2Q4Model = ModelMetadata(
             name = "qwen2-0.5b-instruct-q4_0.gguf",
-            displayName = "Qwen2-0.5B 中文对话模型",
+            displayName = "Qwen2-0.5B 中文对话模型 (Q4)",
             size = 352_000_000L,  // 约 336 MB
             requiredRam = 512,
             url = "https://hf-mirror.com/Qwen/Qwen2-0.5B-Instruct-GGUF/resolve/main/qwen2-0_5b-instruct-q4_0.gguf",
             sha256 = "",
-            description = "阿里云千问 0.5B 模型，中文能力强，适合手机运行"
+            description = "标准版本，平衡速度与质量"
         )
 
-        // ✅ 可选：保留 TinyLlama 作为备选
+        // ✅ Q3 模型（新增）
+        val qwen2Q3Model = ModelMetadata(
+            name = "qwen2-0.5b-instruct-q3_k_m.gguf",
+            displayName = "Qwen2-0.5B 中文对话模型 (Q3)",
+            size = 246_000_000L,  // 约 235 MB
+            requiredRam = 384,
+            url = "https://hf-mirror.com/Qwen/Qwen2-0.5B-Instruct-GGUF/resolve/main/qwen2-0_5b-instruct-q3_k_m.gguf",
+            sha256 = "",
+            description = "轻量版本，更小体积更快速度"
+        )
+
+        // ✅ TinyLlama（预置模型，不显示在下载列表）
         val tinyLlamaModel = ModelMetadata(
             name = "tinyllama-1.1b-chat-q4_0.gguf",
             displayName = "TinyLlama 1.1B (已预置)",
@@ -179,9 +190,10 @@ class DownloadActivity : AppCompatActivity() {
         val fileManager = ModelFileManager.getInstance(this)
 
         // ✅ 检查哪些模型已下载
-        listOf(qwen2Model, tinyLlamaModel).forEach { model ->
+        listOf(qwen2Q4Model, qwen2Q3Model, tinyLlamaModel).forEach { model ->
             val modelDir = fileManager.getModelDir()
             val modelFile = File(modelDir, model.name)
+
             if (modelFile.exists() && modelFile.length() > 0) {
                 downloadedModels.add(model)
             } else {

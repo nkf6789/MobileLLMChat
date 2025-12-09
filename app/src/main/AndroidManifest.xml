@@ -80,7 +80,9 @@
                 android:value=".SettingsActivity" />
         </activity>
 
-
+        <activity
+            android:name=".PerformanceTestActivity"
+            android:exported="false" />
 
 
         <!-- ========== 模型下载服务（新增） ========== -->
@@ -89,6 +91,7 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
 
     </application>
 

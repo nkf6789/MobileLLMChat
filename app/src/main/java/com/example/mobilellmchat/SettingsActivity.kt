@@ -26,7 +26,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var rbLocal: RadioButton
     private lateinit var tvCurrentModel: TextView
 
-    // ✅ 新增：远程配置相关
+    // 远程配置相关
     private lateinit var cardRemoteConfig: CardView
     private lateinit var etApiKey: EditText
     private lateinit var etBaseUrl: EditText
@@ -46,10 +46,13 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var preferences: AppPreferences
     private lateinit var fileManager: ModelFileManager
 
-    // ✅ 包含预置模型 + 可下载模型
+    private lateinit var btnPerformanceTest: Button
+
+    // ✅ 包含预置模型 + Q3 + Q4 模型
     private val availableModels = listOf(
-        "tinyllama-1.1b-chat-q4_0.gguf",     // ✅ 预置模型（打包在APK中）
-        "qwen2-0.5b-instruct-q4_0.gguf"      // ✅ 可下载模型
+        "tinyllama-1.1b-chat-q4_0.gguf",
+        "qwen2-0.5b-instruct-q3_k_m.gguf",   // ← Q3 模型
+        "qwen2-0.5b-instruct-q4_0.gguf"      // ← Q4 模型
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -61,7 +64,7 @@ class SettingsActivity : AppCompatActivity() {
         loadCurrentSettings()
         setupListeners()
 
-        // ✅ 首次运行时确保预置模型已复制
+        // 首次运行时确保预置模型已复制
         lifecycleScope.launch {
             if (!ModelAssetManager.isPreinstalledModelReady(this@SettingsActivity)) {
                 Toast.makeText(
@@ -88,7 +91,7 @@ class SettingsActivity : AppCompatActivity() {
         rbLocal = findViewById(R.id.rbLocal)
         tvCurrentModel = findViewById(R.id.tvCurrentModel)
 
-        // ✅ 新增：远程配置视图
+        // 远程配置视图
         cardRemoteConfig = findViewById(R.id.cardRemoteConfig)
         etApiKey = findViewById(R.id.etApiKey)
         etBaseUrl = findViewById(R.id.etBaseUrl)
@@ -105,6 +108,8 @@ class SettingsActivity : AppCompatActivity() {
         tvTemperatureValue = findViewById(R.id.tvTemperatureValue)
         btnSave = findViewById(R.id.btnSave)
 
+        btnPerformanceTest = findViewById(R.id.btnPerformanceTest)
+
         val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, availableModels)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spinnerLocalModel.adapter = adapter
@@ -118,7 +123,7 @@ class SettingsActivity : AppCompatActivity() {
             val threads = preferences.cpuThreads
             val temperature = preferences.temperature
 
-            // ✅ 加载远程配置
+            // 加载远程配置
             etApiKey.setText(preferences.apiKey)
             etBaseUrl.setText(preferences.baseUrl)
             etModelName.setText(preferences.modelName)
@@ -164,8 +169,11 @@ class SettingsActivity : AppCompatActivity() {
         btnBack.setOnClickListener {
             finish()
         }
+        btnPerformanceTest.setOnClickListener {
+            startActivity(Intent(this, PerformanceTestActivity::class.java))
+        }
 
-        // ✅ 模型类型切换监听
+        // 模型类型切换监听
         rgModelType.setOnCheckedChangeListener { _, checkedId ->
             when (checkedId) {
                 R.id.rbRemote -> {
@@ -180,7 +188,7 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         btnDownloadModel.setOnClickListener {
-            // ✅ 启用下载功能
+            // 启用下载功能
             startActivity(Intent(this, DownloadActivity::class.java))
         }
 
@@ -220,7 +228,7 @@ class SettingsActivity : AppCompatActivity() {
 
         when (selectedModelType) {
             ModelType.REMOTE -> {
-                // ✅ 保存远程配置
+                // 保存远程配置
                 val apiKey = etApiKey.text.toString().trim()
                 val baseUrl = etBaseUrl.text.toString().trim()
                 val modelName = etModelName.text.toString().trim()
@@ -240,7 +248,7 @@ class SettingsActivity : AppCompatActivity() {
 
                 preferences.modelType = ModelType.REMOTE
                 preferences.apiKey = apiKey
-                preferences.baseUrl = baseUrl  // 会自动补 /
+                preferences.baseUrl = baseUrl
                 preferences.modelName = modelName
 
                 Toast.makeText(this, "远程模型配置已保存", Toast.LENGTH_SHORT).show()
