@@ -233,16 +233,24 @@ class DownloadActivity : AppCompatActivity() {
     }
 
     private fun cleanTempFiles() {
-        val fileManager = ModelFileManager.getInstance(this)
-        val deleted = fileManager.cleanTempFiles()
+        // ✅ 添加确认对话框
+        AlertDialog.Builder(this)
+            .setTitle("确认清理")
+            .setMessage("确定要清理所有临时文件吗？此操作不可恢复。")
+            .setPositiveButton("清理") { _, _ ->
+                val fileManager = ModelFileManager.getInstance(this)
+                val deleted = fileManager.cleanTempFiles()
 
-        Snackbar.make(
-            findViewById(android.R.id.content),
-            "已清理 $deleted 个临时文件",
-            Snackbar.LENGTH_SHORT
-        ).show()
+                Snackbar.make(
+                    findViewById(android.R.id.content),
+                    "已清理 $deleted 个临时文件",
+                    Snackbar.LENGTH_SHORT
+                ).show()
 
-        updateStorageInfo()
+                updateStorageInfo()
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     private fun downloadModel(model: ModelMetadata) {

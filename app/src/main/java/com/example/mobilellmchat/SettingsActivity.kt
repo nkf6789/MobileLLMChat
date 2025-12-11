@@ -2,6 +2,7 @@ package com.example.mobilellmchat
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
@@ -17,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -251,7 +253,10 @@ class SettingsActivity : AppCompatActivity() {
                 preferences.baseUrl = baseUrl
                 preferences.modelName = modelName
 
-                Toast.makeText(this, "远程模型配置已保存", Toast.LENGTH_SHORT).show()
+                // ✅ 发送配置更新广播
+                notifyConfigurationChanged()
+
+                Toast.makeText(this, "远程模型配置已保存并生效", Toast.LENGTH_SHORT).show()
                 finish()
             }
 
@@ -261,7 +266,7 @@ class SettingsActivity : AppCompatActivity() {
                 if (!fileManager.isModelDownloaded(selectedModel)) {
                     Toast.makeText(
                         this,
-                        "模型 $selectedModel 未下载，请先下载",
+                        "模型 $selectedModel 未下载,请先下载",
                         Toast.LENGTH_SHORT
                     ).show()
                     return
@@ -277,10 +282,26 @@ class SettingsActivity : AppCompatActivity() {
                 preferences.cpuThreads = seekBarThreads.progress + 1
                 preferences.temperature = seekBarTemperature.progress / 100.0f
 
-                Toast.makeText(this, "本地模型配置已保存", Toast.LENGTH_SHORT).show()
+                // ✅ 发送配置更新广播
+                notifyConfigurationChanged()
+
+                Toast.makeText(this, "本地模型配置已保存并生效", Toast.LENGTH_SHORT).show()
                 finish()
             }
         }
+    }
+
+    /**
+     * ✅ 通知配置已更改（使用本地广播）
+     */
+    private fun notifyConfigurationChanged() {
+        Log.d("SettingsActivity", "📤 准备发送本地广播")
+        val intent = Intent("com.example.mobilellmchat.CONFIG_CHANGED")
+
+        // ✅ 使用 LocalBroadcastManager 而不是全局广播
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+
+        Log.d("SettingsActivity", "✅ 本地广播已发送")
     }
 
     private suspend fun checkGpuAvailability(): Boolean = withContext(Dispatchers.Default) {

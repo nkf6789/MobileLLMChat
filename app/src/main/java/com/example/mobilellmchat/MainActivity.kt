@@ -1,7 +1,13 @@
 package com.example.mobilellmchat
 
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -24,6 +30,7 @@ import com.example.mobilellmchat.data.local.AppDatabase
 import com.example.mobilellmchat.data.local.repository.ChatRepository
 import com.example.mobilellmchat.viewmodel.ChatViewModel
 import com.example.mobilellmchat.viewmodel.ChatViewModelFactory
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
 /**
  * MainActivity - 主界面
@@ -32,18 +39,21 @@ import com.example.mobilellmchat.viewmodel.ChatViewModelFactory
  * - 聊天消息显示和发送
  * - 会话管理（左侧抽屉）
  * - 设置和下载管理入口
+ * - [MODIFIED] 支持从收藏页面跳转到指定会话并高亮消息
  *
  * @author AI-Assisted
  * @since Sprint 2
  */
 class MainActivity : AppCompatActivity() {
 
-    private val viewModel: ChatViewModel by viewModels {
-        val database = AppDatabase.getDatabase(applicationContext)  // ✅ 修复
-        val repository = ChatRepository(database)
-        ChatViewModelFactory(application, repository)
+    private val repository: ChatRepository by lazy {
+        val database = AppDatabase.getDatabase(applicationContext)
+        ChatRepository(database)
     }
 
+    private val viewModel: ChatViewModel by viewModels {
+        ChatViewModelFactory(application, repository)
+    }
 
     private lateinit var toolbar: Toolbar
     private lateinit var drawerLayout: DrawerLayout
@@ -57,15 +67,37 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnNewChat: Button
     private lateinit var btnMenu: ImageButton
 
+    // ✅ 延迟执行器，用于高亮后的清除
+    private val handler = Handler(Looper.getMainLooper())
+    private var clearHighlightRunnable: Runnable? = null
+
+    private val configChangeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            Log.d(TAG, "📢 收到配置更改广播")
+            if (intent?.action == "com.example.mobilellmchat.CONFIG_CHANGED") {
+                repository.reinitialize(applicationContext)
+                Toast.makeText(
+                    this@MainActivity,
+                    "✅ 配置已更新并生效",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Log.d(TAG, "📱 onCreate 执行")
         setContentView(R.layout.activity_main)
 
         initViews()
         setupToolbar()
         setupAdapters()
-        setupBackPressHandler()  // ✅ 新增：设置返回键处理
+        setupBackPressHandler()
         observeViewModel()
+        registerConfigChangeReceiver()
+
+        handleIncomingIntent(intent)
 
         viewModel.conversations.observe(this) { list ->
             if (list.isEmpty()) {
@@ -76,10 +108,106 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun initViews() {
-        // 如果你的布局中有 Toolbar，取消注释下面这行
-        // toolbar = findViewById(R.id.toolbar)
+    /**
+     * ✅ 处理 SINGLE_TOP 启动模式的 Intent
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        Log.d(TAG, "🔄 onNewIntent 被调用")
+        setIntent(intent)
+        handleIncomingIntent(intent)
+    }
 
+    /**
+     * ✅ 统一处理传入的 Intent，包含高亮逻辑
+     */
+    private fun handleIncomingIntent(intent: Intent?) {
+        if (intent == null) {
+            Log.d(TAG, "⚠️ Intent 为 null")
+            return
+        }
+
+        val conversationId = intent.getLongExtra("conversation_id", -1L)
+        val messageId = intent.getLongExtra("message_id", -1L)
+
+        Log.d(TAG, "📥 接收到的会话ID: $conversationId")
+        Log.d(TAG, "📥 接收到的消息ID: $messageId")
+
+        if (conversationId != -1L) {
+            Log.d(TAG, "✅ 准备切换到会话 $conversationId")
+            viewModel.switchConversation(conversationId)
+
+            // ✅ 如果有消息ID，等待消息加载后高亮并滚动
+            if (messageId != -1L) {
+                Log.d(TAG, "📌 准备高亮消息 $messageId")
+                highlightAndScrollToMessage(messageId)
+            }
+        } else {
+            Log.d(TAG, "ℹ️ 无会话ID，使用默认行为")
+        }
+    }
+
+    /**
+     * ✅ 高亮并滚动到指定消息
+     */
+    private fun highlightAndScrollToMessage(messageId: Long) {
+        // 等待消息列表加载完成（使用 observe 确保数据已更新）
+        viewModel.messages.observe(this) { messages ->
+            if (messages.isEmpty()) {
+                Log.d(TAG, "⚠️ 消息列表为空，等待加载")
+                return@observe
+            }
+
+            // 查找消息在列表中的位置
+            val position = messages.indexOfFirst { it.id == messageId }
+
+            if (position != -1) {
+                Log.d(TAG, "✅ 找到消息位置: $position")
+
+                // 延迟执行，确保 RecyclerView 已经渲染完成
+                handler.postDelayed({
+                    // 1. 滚动到目标位置（居中显示）
+                    val layoutManager = rvMessages.layoutManager as? LinearLayoutManager
+                    layoutManager?.scrollToPositionWithOffset(position, 100)
+
+                    // 2. 设置高亮
+                    chatAdapter.setHighlightMessageId(messageId)
+
+                    // 3. 3秒后自动清除高亮
+                    clearHighlightRunnable?.let { handler.removeCallbacks(it) }
+                    clearHighlightRunnable = Runnable {
+                        chatAdapter.clearHighlight()
+                        Log.d(TAG, "🎨 高亮已清除")
+                    }
+                    handler.postDelayed(clearHighlightRunnable!!, 3000L)
+
+                    Log.d(TAG, "🎨 消息已高亮并滚动到可见位置")
+                }, 300L)  // 延迟 300ms 确保渲染完成
+
+            } else {
+                Log.d(TAG, "⚠️ 未找到消息ID $messageId 在列表中")
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(configChangeReceiver)
+
+        // ✅ 清理 Handler 回调
+        clearHighlightRunnable?.let { handler.removeCallbacks(it) }
+
+        Log.d(TAG, "🗑️ 本地广播接收器已注销")
+    }
+
+    private fun registerConfigChangeReceiver() {
+        Log.d(TAG, "🔧 开始注册本地广播接收器")
+        val filter = IntentFilter("com.example.mobilellmchat.CONFIG_CHANGED")
+        LocalBroadcastManager.getInstance(this).registerReceiver(configChangeReceiver, filter)
+        Log.d(TAG, "✅ 本地广播接收器注册成功")
+    }
+
+    private fun initViews() {
         drawerLayout = findViewById(R.id.drawerLayout)
         rvMessages = findViewById(R.id.rvMessages)
         rvConversations = findViewById(R.id.rvConversations)
@@ -88,8 +216,8 @@ class MainActivity : AppCompatActivity() {
         progressBar = findViewById(R.id.progressBar)
         btnNewChat = findViewById(R.id.btnNewChat)
         btnMenu = findViewById(R.id.btnMenu)
-        val btnSettings: ImageButton = findViewById(R.id.btnSettings)  // ← 新增这行
-
+        val btnSettings: ImageButton = findViewById(R.id.btnSettings)
+        val btnFavorites: Button = findViewById(R.id.btnFavorites)
 
         btnSend.setOnClickListener {
             val content = etMessage.text.toString()
@@ -108,7 +236,11 @@ class MainActivity : AppCompatActivity() {
             drawerLayout.openDrawer(GravityCompat.START)
         }
 
-        // ✅ 新增：设置按钮点击事件
+        btnFavorites.setOnClickListener {
+            startActivity(Intent(this, FavoritesActivity::class.java))
+            drawerLayout.closeDrawer(GravityCompat.START)
+        }
+
         btnSettings.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
@@ -141,9 +273,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupAdapters() {
+        // ✅ 创建支持高亮的 ChatAdapter
         chatAdapter = ChatAdapter(
             onLikeClick = { msg -> viewModel.toggleLike(msg) },
-            onFavoriteClick = { msg -> viewModel.toggleFavorite(msg) }
+            onFavoriteClick = { msg -> viewModel.toggleFavorite(msg) },
+            highlightMessageId = -1L  // 初始无高亮
         )
         rvMessages.layoutManager = LinearLayoutManager(this)
         rvMessages.adapter = chatAdapter
@@ -156,16 +290,12 @@ class MainActivity : AppCompatActivity() {
         rvConversations.adapter = conversationAdapter
     }
 
-    /**
-     * ✅ 设置返回键处理（替换已弃用的 onBackPressed）
-     */
     private fun setupBackPressHandler() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
                     drawerLayout.closeDrawer(GravityCompat.START)
                 } else {
-                    // 调用默认行为（退出 Activity）
                     isEnabled = false
                     onBackPressedDispatcher.onBackPressed()
                 }
@@ -176,7 +306,8 @@ class MainActivity : AppCompatActivity() {
     private fun observeViewModel() {
         viewModel.messages.observe(this) { messages ->
             chatAdapter.submitList(messages) {
-                if (messages.isNotEmpty()) {
+                // 只在非高亮跳转时自动滚动到底部
+                if (messages.isNotEmpty() && intent.getLongExtra("message_id", -1L) == -1L) {
                     rvMessages.scrollToPosition(messages.size - 1)
                 }
             }
@@ -197,6 +328,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ❌ 移除已弃用的方法
-    // override fun onBackPressed() { ... }
+    companion object {
+        private const val TAG = "MainActivity"
+    }
 }

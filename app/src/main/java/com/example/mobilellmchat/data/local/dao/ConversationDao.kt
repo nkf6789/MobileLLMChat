@@ -1,4 +1,4 @@
-package com.example.mobilellmchat.data.local.dao  // ✅ 修复：正确的包路径
+package com.example.mobilellmchat.data.local.dao
 
 import androidx.room.Dao
 import androidx.room.Insert
@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Update
 import com.example.mobilellmchat.data.local.entity.ChatMessageEntity
 import com.example.mobilellmchat.data.local.entity.ConversationEntity
+import com.example.mobilellmchat.model.FavoriteMessageWithConversation
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -31,7 +32,6 @@ interface ConversationDao {
     @Query("SELECT * FROM chat_messages WHERE conversationId = :conversationId ORDER BY timestamp ASC")
     fun getMessagesByConversation(conversationId: Long): Flow<List<ChatMessageEntity>>
 
-    // 同步方法，用于构造 API 上下文
     @Query("SELECT * FROM chat_messages WHERE conversationId = :conversationId ORDER BY timestamp ASC")
     suspend fun getMessagesByConversationSync(conversationId: Long): List<ChatMessageEntity>
 
@@ -43,4 +43,23 @@ interface ConversationDao {
 
     @Query("UPDATE chat_messages SET isFavorited = :isFavorited WHERE id = :id")
     suspend fun updateFavoriteStatus(id: Long, isFavorited: Boolean)
+
+    // ✅ 新增：查询所有收藏消息（带会话信息）
+    @Query("""
+        SELECT 
+            m.id,
+            m.content,
+            m.timestamp,
+            m.conversationId,
+            c.title as conversationTitle
+        FROM chat_messages m
+        INNER JOIN conversations c ON m.conversationId = c.id
+        WHERE m.isFavorited = 1 AND m.role = 'assistant'
+        ORDER BY m.timestamp DESC
+    """)
+    fun getAllFavoritedMessagesWithConversation(): Flow<List<FavoriteMessageWithConversation>>
+
+    // ✅ 新增：根据消息ID获取会话ID
+    @Query("SELECT conversationId FROM chat_messages WHERE id = :messageId")
+    suspend fun getConversationIdByMessageId(messageId: Long): Long?
 }

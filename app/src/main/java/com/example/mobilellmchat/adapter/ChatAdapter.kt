@@ -1,8 +1,11 @@
 package com.example.mobilellmchat.adapter
 
+import android.animation.ArgbEvaluator
+import android.animation.ValueAnimator
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.graphics.Color
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -18,18 +21,55 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/**
+ * ChatAdapter - 聊天消息适配器
+ *
+ * [MODIFIED] 支持消息高亮功能
+ *
+ * @param highlightMessageId 需要高亮的消息ID，-1 表示无高亮
+ */
 class ChatAdapter(
     private val onLikeClick: (Message) -> Unit,
-    private val onFavoriteClick: (Message) -> Unit
+    private val onFavoriteClick: (Message) -> Unit,
+    private var highlightMessageId: Long = -1L  // ✅ 新增：高亮消息ID
 ) : ListAdapter<Message, RecyclerView.ViewHolder>(MessageDiffCallback()) {
 
     companion object {
         private const val VIEW_TYPE_USER = 1
         private const val VIEW_TYPE_AI = 2
+
+        // ✅ 高亮颜色配置
+        private const val HIGHLIGHT_COLOR = "#FFF9C4"  // 浅黄色高亮
+        private const val NORMAL_COLOR = "#F2F3F5"     // 正常背景色
+        private const val HIGHLIGHT_DURATION = 1500L   // 高亮持续时间(ms)
+    }
+
+    /**
+     * ✅ 新增：更新高亮消息ID
+     */
+    fun setHighlightMessageId(messageId: Long) {
+        val oldHighlightId = highlightMessageId
+        highlightMessageId = messageId
+
+        // 刷新受影响的项
+        if (oldHighlightId != -1L) {
+            val oldPosition = currentList.indexOfFirst { it.id == oldHighlightId }
+            if (oldPosition != -1) notifyItemChanged(oldPosition)
+        }
+        if (messageId != -1L) {
+            val newPosition = currentList.indexOfFirst { it.id == messageId }
+            if (newPosition != -1) notifyItemChanged(newPosition)
+        }
+    }
+
+    /**
+     * ✅ 新增：清除高亮
+     */
+    fun clearHighlight() {
+        setHighlightMessageId(-1L)
     }
 
     override fun getItemViewType(position: Int): Int {
-        // 假设 Role "user" 是用户，其他都是 AI
         return if (getItem(position).role == "user") VIEW_TYPE_USER else VIEW_TYPE_AI
     }
 
@@ -47,25 +87,29 @@ class ChatAdapter(
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         val message = getItem(position)
+        val shouldHighlight = message.id == highlightMessageId
+
         if (holder is UserMessageViewHolder) {
-            holder.bind(message)
+            holder.bind(message, shouldHighlight)
         } else if (holder is AiMessageViewHolder) {
-            holder.bind(message)
+            holder.bind(message, shouldHighlight)
         }
     }
 
-    // 用户消息 ViewHolder (保持简单，也可以加复制功能)
+    // 用户消息 ViewHolder
     class UserMessageViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val contentTextView: TextView = itemView.findViewById(R.id.tvContent)
         private val timeTextView: TextView = itemView.findViewById(R.id.tvTime)
 
-        fun bind(message: Message) {
+        fun bind(message: Message, shouldHighlight: Boolean) {
             contentTextView.text = message.content
             timeTextView.text = formatTime(message.timestamp)
+
+            // ✅ 用户消息暂不高亮（因为收藏的是 AI 消息）
         }
     }
 
-    // AI 消息 ViewHolder (包含互动逻辑)
+    // AI 消息 ViewHolder
     class AiMessageViewHolder(
         itemView: View,
         private val onLikeClick: (Message) -> Unit,
@@ -77,22 +121,52 @@ class ChatAdapter(
         private val btnFavorite: ImageButton = itemView.findViewById(R.id.btnFavorite)
         private val btnCopy: ImageButton = itemView.findViewById(R.id.btnCopy)
 
-        fun bind(message: Message) {
+        fun bind(message: Message, shouldHighlight: Boolean) {
             contentTextView.text = message.content
             timeTextView.text = formatTime(message.timestamp)
 
-            // 1. 设置视觉状态：isSelected 会触发 selector xml 切换图标颜色
+            // 设置视觉状态
             btnLike.isSelected = message.isLiked
             btnFavorite.isSelected = message.isFavorited
 
-            // 2. 设置点击监听 (调用 Activity/ViewModel 的逻辑)
+            // 设置点击监听
             btnLike.setOnClickListener { onLikeClick(message) }
             btnFavorite.setOnClickListener { onFavoriteClick(message) }
-
-            // 3. 实现复制功能 (直接在这里实现，最简单有效)
             btnCopy.setOnClickListener {
                 copyToClipboard(itemView.context, message.content)
             }
+
+            // ✅ 处理高亮效果 - 应用到整个消息容器
+            if (shouldHighlight) {
+                applyHighlight()
+            } else {
+                clearHighlight()
+            }
+        }
+
+        /**
+         * ✅ 应用高亮效果（从高亮色渐变回正常色）
+         * [FIXED] 将高亮应用到整个消息容器而不是单个TextView
+         */
+        private fun applyHighlight() {
+            val startColor = Color.parseColor(HIGHLIGHT_COLOR)
+            val endColor = Color.parseColor(NORMAL_COLOR)
+
+            val animator = ValueAnimator.ofObject(ArgbEvaluator(), startColor, endColor)
+            animator.duration = HIGHLIGHT_DURATION
+            animator.addUpdateListener { animation ->
+                // ✅ 修复：应用到整个消息容器（itemView），而不只是TextView
+                itemView.setBackgroundColor(animation.animatedValue as Int)
+            }
+            animator.start()
+        }
+
+        /**
+         * ✅ 清除高亮效果
+         * [FIXED] 恢复为透明背景而不是灰色，避免覆盖布局原本的背景
+         */
+        private fun clearHighlight() {
+            itemView.setBackgroundColor(Color.TRANSPARENT)
         }
 
         private fun copyToClipboard(context: Context, text: String) {
@@ -109,7 +183,6 @@ class ChatAdapter(
         }
 
         override fun areContentsTheSame(oldItem: Message, newItem: Message): Boolean {
-            // 必须完全比较内容，包括点赞状态，才能触发 UI 刷新
             return oldItem == newItem
         }
     }

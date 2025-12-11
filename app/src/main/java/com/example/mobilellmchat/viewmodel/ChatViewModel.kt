@@ -83,6 +83,7 @@ class ChatViewModel(
      * [MODIFIED] 发送消息 - 使用新的 Repository 方法
      */
     fun sendMessage(content: String) {
+        Log.d("ChatViewModel", "当前 repository 实例: ${repository.hashCode()}")
         val conversationId = _currentConversationId.value
         if (conversationId == null) {
             _toastMessage.value = "请先选择或创建一个会话"

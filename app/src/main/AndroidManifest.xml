@@ -84,6 +84,13 @@
             android:name=".PerformanceTestActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".FavoritesActivity"
+            android:label="我的收藏"
+            android:parentActivityName=".MainActivity" />
+
+
+
 
         <!-- ========== 模型下载服务（新增） ========== -->
         <service
