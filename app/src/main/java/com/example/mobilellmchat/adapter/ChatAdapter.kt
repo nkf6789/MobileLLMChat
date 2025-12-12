@@ -6,6 +6,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Color
+import android.os.Handler
+import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -24,34 +26,96 @@ import java.util.Locale
 /**
  * ChatAdapter - 聊天消息适配器
  *
- * [MODIFIED] 支持消息高亮功能
+ * [MODIFIED] 支持流式消息动态更新 + 光标闪烁动画
  *
- * @param highlightMessageId 需要高亮的消息ID，-1 表示无高亮
+ * @author AI-Assisted (Modified)
+ * @since Sprint 2 - Stream Support with Cursor Animation
  */
 class ChatAdapter(
     private val onLikeClick: (Message) -> Unit,
     private val onFavoriteClick: (Message) -> Unit,
-    private var highlightMessageId: Long = -1L  // ✅ 新增：高亮消息ID
+    private var highlightMessageId: Long = -1L
 ) : ListAdapter<Message, RecyclerView.ViewHolder>(MessageDiffCallback()) {
 
     companion object {
         private const val VIEW_TYPE_USER = 1
         private const val VIEW_TYPE_AI = 2
+        private const val HIGHLIGHT_COLOR = "#FFF9C4"
+        private const val NORMAL_COLOR = "#F2F3F5"
+        private const val HIGHLIGHT_DURATION = 1500L
+        private const val CURSOR_BLINK_INTERVAL = 500L  // ✅ 光标闪烁间隔
+    }
 
-        // ✅ 高亮颜色配置
-        private const val HIGHLIGHT_COLOR = "#FFF9C4"  // 浅黄色高亮
-        private const val NORMAL_COLOR = "#F2F3F5"     // 正常背景色
-        private const val HIGHLIGHT_DURATION = 1500L   // 高亮持续时间(ms)
+    // 流式消息状态
+    private var streamingMessageId: Long? = null
+    private var streamingContent: String = ""
+
+    // ✅ 新增：光标闪烁控制
+    private val handler = Handler(Looper.getMainLooper())
+    private var cursorBlinkRunnable: Runnable? = null
+    private var showCursor = true
+
+    /**
+     * 更新流式消息内容
+     */
+    fun updateStreamingMessage(messageId: Long, content: String) {
+        streamingMessageId = messageId
+        streamingContent = content
+
+        // 启动光标闪烁
+        startCursorBlink()
+
+        val position = currentList.indexOfFirst { it.id == messageId }
+        if (position != -1) {
+            notifyItemChanged(position)
+        }
     }
 
     /**
-     * ✅ 新增：更新高亮消息ID
+     * 清除流式状态
      */
+    fun clearStreamingState() {
+        streamingMessageId = null
+        streamingContent = ""
+        stopCursorBlink()  // ✅ 停止光标闪烁
+    }
+
+    /**
+     * ✅ 新增：启动光标闪烁动画
+     */
+    private fun startCursorBlink() {
+        // 先停止之前的闪烁
+        stopCursorBlink()
+
+        cursorBlinkRunnable = object : Runnable {
+            override fun run() {
+                showCursor = !showCursor
+
+                // 只刷新正在流式输出的消息
+                val position = currentList.indexOfFirst { it.id == streamingMessageId }
+                if (position != -1) {
+                    notifyItemChanged(position, "cursor_blink")  // 使用 payload 优化刷新
+                }
+
+                handler.postDelayed(this, CURSOR_BLINK_INTERVAL)
+            }
+        }
+        handler.post(cursorBlinkRunnable!!)
+    }
+
+    /**
+     * ✅ 新增：停止光标闪烁
+     */
+    private fun stopCursorBlink() {
+        cursorBlinkRunnable?.let { handler.removeCallbacks(it) }
+        cursorBlinkRunnable = null
+        showCursor = true
+    }
+
     fun setHighlightMessageId(messageId: Long) {
         val oldHighlightId = highlightMessageId
         highlightMessageId = messageId
 
-        // 刷新受影响的项
         if (oldHighlightId != -1L) {
             val oldPosition = currentList.indexOfFirst { it.id == oldHighlightId }
             if (oldPosition != -1) notifyItemChanged(oldPosition)
@@ -62,9 +126,6 @@ class ChatAdapter(
         }
     }
 
-    /**
-     * ✅ 新增：清除高亮
-     */
     fun clearHighlight() {
         setHighlightMessageId(-1L)
     }
@@ -89,10 +150,44 @@ class ChatAdapter(
         val message = getItem(position)
         val shouldHighlight = message.id == highlightMessageId
 
+        // 检查是否为流式消息
+        val isStreaming = message.id == streamingMessageId
+        val displayContent = if (isStreaming) {
+            // ✅ 根据闪烁状态显示/隐藏光标
+            if (showCursor) "$streamingContent▌" else streamingContent
+        } else {
+            message.content
+        }
+
         if (holder is UserMessageViewHolder) {
             holder.bind(message, shouldHighlight)
         } else if (holder is AiMessageViewHolder) {
-            holder.bind(message, shouldHighlight)
+            holder.bind(message.copy(content = displayContent), shouldHighlight, isStreaming)
+        }
+    }
+
+    /**
+     * ✅ 优化：支持 payload 局部刷新（只更新文本，不重新绑定按钮）
+     */
+    override fun onBindViewHolder(
+        holder: RecyclerView.ViewHolder,
+        position: Int,
+        payloads: MutableList<Any>
+    ) {
+        if (payloads.isNotEmpty() && payloads[0] == "cursor_blink") {
+            // 只更新文本内容，不重新绑定整个 ViewHolder
+            if (holder is AiMessageViewHolder) {
+                val message = getItem(position)
+                val isStreaming = message.id == streamingMessageId
+                val displayContent = if (isStreaming) {
+                    if (showCursor) "$streamingContent▌" else streamingContent
+                } else {
+                    message.content
+                }
+                holder.updateContent(displayContent)
+            }
+        } else {
+            super.onBindViewHolder(holder, position, payloads)
         }
     }
 
@@ -104,8 +199,6 @@ class ChatAdapter(
         fun bind(message: Message, shouldHighlight: Boolean) {
             contentTextView.text = message.content
             timeTextView.text = formatTime(message.timestamp)
-
-            // ✅ 用户消息暂不高亮（因为收藏的是 AI 消息）
         }
     }
 
@@ -121,7 +214,7 @@ class ChatAdapter(
         private val btnFavorite: ImageButton = itemView.findViewById(R.id.btnFavorite)
         private val btnCopy: ImageButton = itemView.findViewById(R.id.btnCopy)
 
-        fun bind(message: Message, shouldHighlight: Boolean) {
+        fun bind(message: Message, shouldHighlight: Boolean, isStreaming: Boolean = false) {
             contentTextView.text = message.content
             timeTextView.text = formatTime(message.timestamp)
 
@@ -136,7 +229,7 @@ class ChatAdapter(
                 copyToClipboard(itemView.context, message.content)
             }
 
-            // ✅ 处理高亮效果 - 应用到整个消息容器
+            // 处理高亮效果
             if (shouldHighlight) {
                 applyHighlight()
             } else {
@@ -145,9 +238,12 @@ class ChatAdapter(
         }
 
         /**
-         * ✅ 应用高亮效果（从高亮色渐变回正常色）
-         * [FIXED] 将高亮应用到整个消息容器而不是单个TextView
+         * ✅ 新增：只更新内容（用于光标闪烁优化）
          */
+        fun updateContent(content: String) {
+            contentTextView.text = content
+        }
+
         private fun applyHighlight() {
             val startColor = Color.parseColor(HIGHLIGHT_COLOR)
             val endColor = Color.parseColor(NORMAL_COLOR)
@@ -155,16 +251,11 @@ class ChatAdapter(
             val animator = ValueAnimator.ofObject(ArgbEvaluator(), startColor, endColor)
             animator.duration = HIGHLIGHT_DURATION
             animator.addUpdateListener { animation ->
-                // ✅ 修复：应用到整个消息容器（itemView），而不只是TextView
                 itemView.setBackgroundColor(animation.animatedValue as Int)
             }
             animator.start()
         }
 
-        /**
-         * ✅ 清除高亮效果
-         * [FIXED] 恢复为透明背景而不是灰色，避免覆盖布局原本的背景
-         */
         private fun clearHighlight() {
             itemView.setBackgroundColor(Color.TRANSPARENT)
         }
@@ -183,8 +274,15 @@ class ChatAdapter(
         }
 
         override fun areContentsTheSame(oldItem: Message, newItem: Message): Boolean {
-            return oldItem == newItem
+            return false  // 内容可能动态变化
         }
+    }
+
+    /**
+     * ✅ 释放资源
+     */
+    fun onDetachedFromRecyclerView() {
+        stopCursorBlink()
     }
 }
 

@@ -1,15 +1,19 @@
 package com.example.mobilellmchat.data.local.dao
 
-import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
-import androidx.room.Query
-import androidx.room.Update
+import androidx.room.*
 import com.example.mobilellmchat.data.local.entity.ChatMessageEntity
 import com.example.mobilellmchat.data.local.entity.ConversationEntity
 import com.example.mobilellmchat.model.FavoriteMessageWithConversation
 import kotlinx.coroutines.flow.Flow
 
+/**
+ * ConversationDao
+ *
+ * [MODIFIED] 新增获取单条消息的方法
+ *
+ * @author AI-Assisted (Modified)
+ * @since Sprint 1 (Updated Sprint 2)
+ */
 @Dao
 interface ConversationDao {
     // --- Conversations ---
@@ -35,8 +39,20 @@ interface ConversationDao {
     @Query("SELECT * FROM chat_messages WHERE conversationId = :conversationId ORDER BY timestamp ASC")
     suspend fun getMessagesByConversationSync(conversationId: Long): List<ChatMessageEntity>
 
+    /**
+     * ✅ 新增：根据 ID 获取单条消息
+     */
+    @Query("SELECT * FROM chat_messages WHERE id = :id")
+    suspend fun getMessageById(id: Long): ChatMessageEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertMessage(message: ChatMessageEntity)
+    suspend fun insertMessage(message: ChatMessageEntity): Long
+
+    /**
+     * ✅ 新增：更新消息（用于流式更新内容）
+     */
+    @Update
+    suspend fun updateMessage(message: ChatMessageEntity)
 
     @Query("UPDATE chat_messages SET isLiked = :isLiked WHERE id = :id")
     suspend fun updateLikeStatus(id: Long, isLiked: Boolean)
@@ -44,7 +60,7 @@ interface ConversationDao {
     @Query("UPDATE chat_messages SET isFavorited = :isFavorited WHERE id = :id")
     suspend fun updateFavoriteStatus(id: Long, isFavorited: Boolean)
 
-    // ✅ 新增：查询所有收藏消息（带会话信息）
+    // 收藏功能
     @Query("""
         SELECT 
             m.id,
@@ -59,7 +75,6 @@ interface ConversationDao {
     """)
     fun getAllFavoritedMessagesWithConversation(): Flow<List<FavoriteMessageWithConversation>>
 
-    // ✅ 新增：根据消息ID获取会话ID
     @Query("SELECT conversationId FROM chat_messages WHERE id = :messageId")
     suspend fun getConversationIdByMessageId(messageId: Long): Long?
 }

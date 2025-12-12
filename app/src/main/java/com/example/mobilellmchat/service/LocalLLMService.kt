@@ -3,17 +3,20 @@ package com.example.mobilellmchat.service
 import android.content.Context
 import android.util.Log
 import com.example.mobilellmchat.llm.LlamaWrapper
-import com.example.mobilellmchat.model.ApiMessage
-import com.example.mobilellmchat.model.ComputeBackend
-import com.example.mobilellmchat.model.LLMService
-import com.example.mobilellmchat.model.ModelInfo
+import com.example.mobilellmchat.model.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 
 /**
- * 本地 LLM 推理服务（真实实现）
+ * 本地 LLM 推理服务
  *
- * 使用 llama.cpp 进行本地推理
+ * [MODIFIED] 新增流式输出支持
+ *
+ * @author AI-Assisted (Modified)
+ * @since Sprint 1 (Updated Sprint 2)
  */
 class LocalLLMService(
     private val context: Context,
@@ -39,7 +42,6 @@ class LocalLLMService(
         Log.d(TAG, "   温度: $temperature")
         Log.d(TAG, "   最大Token: $maxTokens")
 
-        // 异步加载模型（避免阻塞主线程）
         loadModelAsync()
     }
 
@@ -63,17 +65,17 @@ class LocalLLMService(
         }.start()
     }
 
+    /**
+     * 非流式聊天（保持原有逻辑）
+     */
     override suspend fun chat(messages: List<ApiMessage>): String = withContext(Dispatchers.IO) {
         if (!isInitialized) {
             throw IllegalStateException("模型未加载或加载失败，请检查模型文件")
         }
 
         try {
-            // ✅ 自动识别模型格式
-            val prompt = buildPrompt(messages)  // ← 从 buildTinyLlamaPrompt 改为 buildPrompt
-
-            Log.d(TAG, "📝 开始推理")
-            Log.d(TAG, "   Prompt 长度: ${prompt.length}")
+            val prompt = buildPrompt(messages)
+            Log.d(TAG, "🔍 开始推理")
 
             val response = llamaWrapper.generate(
                 prompt = prompt,
@@ -81,9 +83,7 @@ class LocalLLMService(
                 maxTokens = maxTokens
             )
 
-            Log.d(TAG, "✅ 推理完成")
-            Log.d(TAG, "   响应长度: ${response.length}")
-
+            Log.d(TAG, "✅ 推理完成，响应长度: ${response.length}")
             response
 
         } catch (e: Exception) {
@@ -93,48 +93,33 @@ class LocalLLMService(
     }
 
     /**
-     * ✅ 新增：流式聊天方法（如果需要实时显示）
+     * ✅ 新增：流式聊天方法
      */
-    suspend fun chatStream(
-        messages: List<ApiMessage>,
-        onToken: (String) -> Unit
-    ): String = withContext(Dispatchers.IO) {
+    override suspend fun chatStream(messages: List<ApiMessage>): Flow<String> = flow {
         if (!isInitialized) {
             throw IllegalStateException("模型未加载或加载失败，请检查模型文件")
         }
 
         try {
-            val prompt = buildPrompt(messages)  // ← 改这里
-            val fullResponse = StringBuilder()
+            val prompt = buildPrompt(messages)
+            Log.d(TAG, "🌊 开始流式推理")
 
+            // LlamaWrapper.generateStream() 返回 Iterable<String>
             for (token in llamaWrapper.generateStream(prompt, temperature, maxTokens)) {
-                fullResponse.append(token)
-                onToken(token)
+                Log.d(TAG, "📝 生成 token: $token")
+                emit(token)  // 逐个发送 token
             }
 
-            fullResponse.toString()
+            Log.d(TAG, "✅ 流式推理完成")
 
         } catch (e: Exception) {
             Log.e(TAG, "❌ 流式推理失败", e)
             throw Exception("流式推理失败: ${e.message}")
         }
-    }
+    }.flowOn(Dispatchers.IO)
 
     /**
-     * 构建 TinyLlama 格式的 Prompt
-     *
-     * TinyLlama 使用 Zephyr 格式：
-     * <|system|>
-     * You are a helpful assistant.</s>
-     * <|user|>
-     * 你好</s>
-     * <|assistant|>
-     */
-    /**
      * 构建 Prompt（自动识别模型格式）
-     *
-     * - TinyLlama: 使用 Zephyr 格式 (<|system|>, </s>)
-     * - Qwen2: 使用 ChatML 格式 (<|im_start|>, <|im_end|>)
      */
     private fun buildPrompt(messages: List<ApiMessage>): String {
         val modelName = modelPath.substringAfterLast("/").lowercase()
@@ -174,7 +159,7 @@ class LocalLLMService(
     }
 
     /**
-     * ✅ 新增：Qwen2 格式（ChatML）
+     * Qwen2 格式（ChatML）
      */
     private fun buildQwen2Prompt(messages: List<ApiMessage>): String {
         val sb = StringBuilder()

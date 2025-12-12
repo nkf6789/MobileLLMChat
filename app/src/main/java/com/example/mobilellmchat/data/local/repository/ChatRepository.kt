@@ -16,36 +16,27 @@ import kotlinx.coroutines.flow.map
 /**
  * ChatRepository - 聊天数据仓库
  *
- * [MODIFIED] 新增收藏功能支持
+ * [MODIFIED] 新增流式发送方法
  *
  * @author AI-Assisted (Modified)
- * @since Sprint 1
+ * @since Sprint 1 (Updated Sprint 2)
  */
 class ChatRepository(private val database: AppDatabase) {
 
     private val dao = database.conversationDao()
-
-    // ✅ LLM 服务实例
     private var llmService: LLMService? = null
 
-    // ✅ 初始化 LLM 服务
     fun initialize(context: Context) {
         llmService?.release()
         llmService = ServiceFactory.createLLMService(context)
         Log.d("ChatRepository", "LLM 服务已初始化: ${llmService?.getModelInfo()?.name}")
     }
 
-    /**
-     * ✅ 重新初始化服务（用于配置更改后）
-     */
     fun reinitialize(context: Context) {
         Log.d("ChatRepository", "🔄 重新初始化 LLM 服务...")
-        Log.d("ChatRepository", "旧服务实例: ${llmService?.hashCode()}")
         initialize(context)
-        Log.d("ChatRepository", "新服务实例: ${llmService?.hashCode()}")
     }
 
-    // ✅ 切换 LLM 服务
     fun switchLLMService(newService: LLMService) {
         llmService = newService
         Log.d("ChatRepository", "已切换到: ${newService.getModelInfo().name}")
@@ -81,16 +72,27 @@ class ChatRepository(private val database: AppDatabase) {
         return dao.getMessagesByConversationSync(conversationId)
     }
 
-    suspend fun insertMessage(conversationId: Long, content: String, role: String) {
+    suspend fun insertMessage(conversationId: Long, content: String, role: String): Long {
         val entity = ChatMessageEntity(
             conversationId = conversationId,
             role = role,
             content = content
         )
-        dao.insertMessage(entity)
+        return dao.insertMessage(entity)
     }
 
-    // ✅ 发送消息（集成 LLM 服务）
+    /**
+     * ✅ 新增：更新消息内容（用于流式追加）
+     */
+    suspend fun updateMessageContent(messageId: Long, newContent: String) {
+        val message = dao.getMessageById(messageId) ?: return
+        val updatedMessage = message.copy(content = newContent)
+        dao.updateMessage(updatedMessage)
+    }
+
+    /**
+     * 发送消息（非流式）- 保持原有逻辑
+     */
     suspend fun sendMessageWithLLM(
         context: Context,
         conversationId: Long,
@@ -114,6 +116,38 @@ class ChatRepository(private val database: AppDatabase) {
         return reply
     }
 
+    /**
+     * ✅ 新增：流式发送消息
+     *
+     * @return Pair<Long, Flow<String>> - (消息ID, 文本流)
+     */
+    suspend fun sendMessageWithLLMStream(
+        context: Context,
+        conversationId: Long,
+        userMessage: String
+    ): Pair<Long, Flow<String>> {
+        if (llmService == null) {
+            initialize(context)
+        }
+
+        // 1. 保存用户消息
+        insertMessage(conversationId, userMessage, "user")
+
+        // 2. 创建一个空的 AI 消息占位
+        val aiMessageId = insertMessage(conversationId, "", "assistant")
+
+        // 3. 获取历史记录
+        val history = getMessagesByConversationSync(conversationId)
+        val apiMessages = history.map { dbMsg ->
+            ApiMessage(role = dbMsg.role, content = dbMsg.content)
+        }
+
+        // 4. 返回消息ID和文本流
+        val textFlow = llmService!!.chatStream(apiMessages)
+
+        return Pair(aiMessageId, textFlow)
+    }
+
     // 互动功能
     suspend fun toggleLike(id: Long, currentStatus: Boolean) {
         dao.updateLikeStatus(id, !currentStatus)
@@ -123,12 +157,10 @@ class ChatRepository(private val database: AppDatabase) {
         dao.updateFavoriteStatus(id, !currentStatus)
     }
 
-    // ✅ 新增：获取所有收藏消息（带会话信息）
     fun getAllFavoritedMessagesWithConversation(): Flow<List<FavoriteMessageWithConversation>> {
         return dao.getAllFavoritedMessagesWithConversation()
     }
 
-    // ✅ 新增：根据消息ID获取会话ID
     suspend fun getConversationIdByMessageId(messageId: Long): Long? {
         return dao.getConversationIdByMessageId(messageId)
     }
@@ -137,12 +169,13 @@ class ChatRepository(private val database: AppDatabase) {
     private fun ChatMessageEntity.toUiModel(): Message {
         return Message(
             id = this.id,
-            conversationId = this.conversationId,  // ✅ 新增
+            conversationId = this.conversationId,
             role = this.role,
             content = this.content,
             timestamp = this.timestamp,
             isLiked = this.isLiked,
-            isFavorited = this.isFavorited
+            isFavorited = this.isFavorited,
+            isStreaming = false  // 默认非流式
         )
     }
 }

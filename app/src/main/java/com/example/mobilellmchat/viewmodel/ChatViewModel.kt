@@ -11,16 +11,17 @@ import androidx.lifecycle.viewModelScope
 import com.example.mobilellmchat.data.local.repository.ChatRepository
 import com.example.mobilellmchat.data.local.entity.ConversationEntity
 import com.example.mobilellmchat.model.Message
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 
 /**
  * ChatViewModel
  *
- * [MODIFIED] 使用 Repository 的 sendMessageWithLLM 方法
+ * [MODIFIED] 新增流式发送支持 + 停止生成功能
  *
  * @author AI-Assisted (Modified)
- * @since Sprint 1
+ * @since Sprint 2 - Stream Support with Stop Function
  */
 class ChatViewModel(
     application: Application,
@@ -29,7 +30,7 @@ class ChatViewModel(
 
     // 1. 会话列表
     val conversations: LiveData<List<ConversationEntity>> = repository.getAllConversations()
-        .catch { e -> Log.e("ChatViewModel", "Error loading conversations", e) }
+        .catch { e -> Log.e(TAG, "Error loading conversations", e) }
         .asLiveData()
 
     // 2. 当前选中的会话 ID
@@ -48,8 +49,18 @@ class ChatViewModel(
     private val _toastMessage = MutableLiveData<String>()
     val toastMessage: LiveData<String> get() = _toastMessage
 
+    // 流式消息状态
+    private val _streamingMessageId = MutableLiveData<Long?>()
+    val streamingMessageId: LiveData<Long?> get() = _streamingMessageId
+
+    private val _streamingContent = MutableLiveData<String>()
+    val streamingContent: LiveData<String> get() = _streamingContent
+
+    // ✅ 新增：用于取消流式生成的 Job
+    private var streamingJob: Job? = null
+
     init {
-        Log.d("ChatViewModel", "ViewModel Initialized")
+        Log.d(TAG, "ViewModel Initialized")
     }
 
     // ========== 业务逻辑方法 ==========
@@ -80,10 +91,84 @@ class ChatViewModel(
     }
 
     /**
-     * [MODIFIED] 发送消息 - 使用新的 Repository 方法
+     * 流式发送消息
+     */
+    fun sendMessageStream(content: String) {
+        val conversationId = _currentConversationId.value
+        if (conversationId == null) {
+            _toastMessage.value = "请先选择或创建一个会话"
+            return
+        }
+
+        if (content.isBlank()) return
+
+        // ✅ 保存 Job 引用，用于停止生成
+        streamingJob = viewModelScope.launch {
+            try {
+                _isLoading.value = true
+                _streamingContent.value = ""
+
+                val (messageId, textFlow) = repository.sendMessageWithLLMStream(
+                    context = getApplication(),
+                    conversationId = conversationId,
+                    userMessage = content
+                )
+
+                _streamingMessageId.value = messageId
+                val fullContent = StringBuilder()
+
+                // 收集文本流
+                textFlow.collect { token ->
+                    fullContent.append(token)
+                    _streamingContent.value = fullContent.toString()
+
+                    // 实时更新数据库
+                    repository.updateMessageContent(messageId, fullContent.toString())
+                }
+
+                // 流式完成
+                _streamingMessageId.value = null
+                _isLoading.value = false
+                streamingJob = null  // ✅ 清空 Job
+
+                Log.d(TAG, "✅ 流式消息发送完成")
+
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // ✅ 用户主动停止
+                Log.d(TAG, "🛑 用户停止了生成")
+                _streamingMessageId.value = null
+                _isLoading.value = false
+                streamingJob = null
+                _toastMessage.value = "已停止生成"
+
+            } catch (e: Exception) {
+                _isLoading.value = false
+                _streamingMessageId.value = null
+                streamingJob = null
+                Log.e(TAG, "流式发送失败", e)
+                _toastMessage.value = "发送失败: ${e.message}"
+            }
+        }
+    }
+
+    /**
+     * ✅ 新增：停止流式生成
+     */
+    fun stopGeneration() {
+        streamingJob?.cancel()
+        streamingJob = null
+
+        _streamingMessageId.value = null
+        _isLoading.value = false
+
+        Log.d(TAG, "🛑 已请求停止生成")
+        _toastMessage.value = "正在停止..."
+    }
+
+    /**
+     * 非流式发送（保留原有逻辑，可选使用）
      */
     fun sendMessage(content: String) {
-        Log.d("ChatViewModel", "当前 repository 实例: ${repository.hashCode()}")
         val conversationId = _currentConversationId.value
         if (conversationId == null) {
             _toastMessage.value = "请先选择或创建一个会话"
@@ -96,7 +181,6 @@ class ChatViewModel(
             try {
                 _isLoading.value = true
 
-                // ✅ 调用 Repository 的新方法（内部使用 LLMService）
                 repository.sendMessageWithLLM(
                     context = getApplication(),
                     conversationId = conversationId,
@@ -107,7 +191,7 @@ class ChatViewModel(
 
             } catch (e: Exception) {
                 _isLoading.value = false
-                Log.e("ChatViewModel", "发送消息失败", e)
+                Log.e(TAG, "发送消息失败", e)
                 _toastMessage.value = "发送失败: ${e.message}"
             }
         }
@@ -124,5 +208,9 @@ class ChatViewModel(
         viewModelScope.launch {
             repository.toggleFavorite(message.id, message.isFavorited)
         }
+    }
+
+    companion object {
+        private const val TAG = "ChatViewModel"
     }
 }
